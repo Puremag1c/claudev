@@ -85,21 +85,6 @@ else
     echo "  ✓ SPEC.md создан"
 fi
 
-# CLAUDE.md — симлинк на персональный файл из ~/.claude/
-if [[ -L "$TARGET_DIR/CLAUDE.md" ]]; then
-    rm "$TARGET_DIR/CLAUDE.md"
-fi
-if [[ -f "$TARGET_DIR/CLAUDE.md" ]]; then
-    echo "  - CLAUDE.md уже существует как файл, пропускаю"
-elif [[ -f "$HOME/.claude/CLAUDE.md" ]]; then
-    ln -s "$HOME/.claude/CLAUDE.md" "$TARGET_DIR/CLAUDE.md"
-    echo "  ✓ CLAUDE.md -> ~/.claude/CLAUDE.md"
-else
-    echo "  ! ~/.claude/CLAUDE.md не найден"
-    echo "    Склонируйте PARTNER репо: git clone <partner-repo> ~/.claude"
-    echo "    Или создайте файл вручную: cp $SCRIPT_DIR/templates/CLAUDE.template.md ~/.claude/CLAUDE.md"
-fi
-
 # Создаём рабочие директории
 echo ""
 echo "Creating work directories..."
