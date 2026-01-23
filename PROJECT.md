@@ -179,7 +179,7 @@ CI/CD GitHub (опционально)
 
 ## Текущий статус
 
-**Статус:** Проектирование завершено, готово к реализации
+**Статус:** Проектирование завершено, архитектурный аудит пройден, готово к реализации
 
 **Структура:**
 - [x] core/ — агенты, команды, скрипты (требуют обновления)
@@ -795,6 +795,172 @@ done
 - ✅ Предсказуемость: изменения применяются максимум через iteration_delay
 - ✅ Edge case: срочные изменения → User останавливает orchestrator и перезапускает
 - ✅ LLM-friendly: одна команда `source`
+
+---
+
+### 8. GitHub remote — early detection + graceful degradation
+
+**Проблема:** Если нет GitHub remote → система работает до Senior Executor → падает при merge
+
+**Решение:** Проверка в начале (Manager INIT) + локальный merge как fallback
+
+**Workflow:**
+```bash
+# Manager при первом запуске (INIT фаза):
+if ! git remote -v | grep -q github; then
+  log "WARN" "No GitHub remote detected. Final merge will require manual action."
+  bd create --title="Setup GitHub remote for automated PR workflow" \
+    --type=task --priority=4 --label=optional
+fi
+
+# Senior Executor при merge:
+if ! git remote -v | grep -q github; then
+  log "INFO" "No GitHub remote. Performing local merge (no PR review)."
+  git checkout main
+  git merge --no-ff task/beads-$TASK_ID
+  git push || log "WARN" "Cannot push to remote. Manual push required."
+else
+  gh pr create && gh pr merge
+fi
+```
+
+**Чеклист:**
+- ✅ Failure: User узнаёт о проблеме в начале, не в конце
+- ✅ Edge case: локальные проекты работают (merge без PR)
+- ✅ LLM-friendly: простая проверка + if/else
+- ✅ Safety: опциональная задача P4 для настройки remote
+
+---
+
+### 9. Executor rebase conflicts — всегда эскалировать
+
+**Проблема:** LLM плохо классифицирует "простой vs сложный" конфликт → риск неправильного разрешения
+
+**Решение:** Любой rebase conflict → abort + эскалация к Architect
+
+**Workflow:**
+```bash
+# Executor при rebase:
+git fetch origin main
+git rebase origin/main
+
+if [ $? -ne 0 ]; then
+  git rebase --abort
+  log "WARN" "Rebase conflict detected, escalating to Architect"
+
+  bd update $TASK_ID --status=open \
+    --notes="Rebase conflict with main. Files: $(git diff --name-only origin/main...HEAD)"
+
+  bd create --title="Resolve conflict: $TASK_TITLE" \
+    --type=task --priority=0 --assignee=architect
+
+  exit 0  # Штатная эскалация, не ошибка
+fi
+
+git push --force-with-lease -u origin task/beads-$TASK_ID
+```
+
+**Чеклист:**
+- ✅ Failure: Executor не принимает решения о конфликтах (меньше риска)
+- ✅ LLM-friendly: простейшая логика (failed? → abort + escalate)
+- ✅ Safety: Architect (Opus) с полным контекстом разрешает любой конфликт
+- ✅ Data flow: конфликт → open task → P0 для Architect
+
+---
+
+### 10. Stats tokens — измерять input, оценивать output
+
+**Проблема:** Claude Code output в stdout смешан с системными сообщениями → сложно парсить точно
+
+**Решение:** Измерять input chars, оценивать output (~50% от input), считать tokens через `/4`
+
+**Workflow:**
+```bash
+# Orchestrator при запуске агента:
+run_agent() {
+  local agent=$1 model=$2 task_id=$3
+
+  # Формируем промпт во temp файл
+  local prompt_file=".claudev/prompts/${agent}-${task_id}.txt"
+  cat ".claude/agents/${agent}.md" > "$prompt_file"
+  echo -e "\n---\nTASK_ID: $task_id\n..." >> "$prompt_file"
+
+  # Считаем input
+  local input_chars=$(wc -c < "$prompt_file")
+
+  # Запускаем (output в общий лог)
+  {
+    echo "=== AGENT START: $agent (task: $task_id) ==="
+    timeout 10m claude --model $model --print < "$prompt_file"
+    echo "=== AGENT END: $agent ==="
+  } | tee -a logs/claudev.log
+
+  # Логируем stats
+  log "STATS" "RUN" "agent=$agent model=$model input_chars=$input_chars task=$task_id"
+
+  rm "$prompt_file"
+}
+
+# Stats script (конец итерации):
+grep "STATS.*RUN" logs/claudev.log | \
+  awk '{
+    for(i=1;i<=NF;i++) {
+      if($i ~ /input_chars=/) {
+        split($i,a,"="); total += a[2]
+      }
+    }
+  } END {
+    estimated_output = total * 0.5
+    estimated_tokens = (total + estimated_output) / 4
+    print "input_chars: " total
+    print "estimated_output_chars: " estimated_output
+    print "estimated_tokens: " int(estimated_tokens)
+  }' > stats/iteration-$(date +%Y%m%d-%H%M%S).yaml
+```
+
+**Чеклист:**
+- ✅ Data flow: промпт → temp файл → измерение → запуск → cleanup
+- ✅ Failure: падение агента → input залогирован (log перед запуском)
+- ✅ LLM-friendly: простые команды (cat, wc, awk)
+- ✅ Точность: ~60%, достаточно для планирования бюджета (не billing)
+
+---
+
+### 11. Config reload — hybrid yaml→bash
+
+**Проблема:** `source config.yaml` не работает (yaml != bash syntax), но yaml удобнее для User
+
+**Решение:** Config.yaml (user-friendly) → sync → config.sh (system-friendly)
+
+**Workflow:**
+```bash
+# .claudev/config.yaml (User редактирует)
+ci: false
+cd: false
+max_parallel_executors: 3
+timeouts:
+  task: 10m
+  user_input: 30m
+
+# core/scripts/sync-config.sh (конвертация yaml→sh)
+parse_yaml .claudev/config.yaml > .claudev/config.sh
+# Simple parser: grep/sed, no external dependencies (yq/jq)
+
+# Orchestrator auto-sync перед reload:
+if [ .claudev/config.yaml -nt .claudev/config.sh ]; then
+  log "INFO" "config.yaml updated, syncing..."
+  ./scripts/sync-config.sh
+fi
+
+source .claudev/config.sh  # ✅ Works
+```
+
+**Чеклист:**
+- ✅ Failure: yaml невалиден → используем старый config.sh (graceful)
+- ✅ LLM-friendly: orchestrator просто `source config.sh`
+- ✅ UX: User редактирует yaml (привычно), система работает с bash
+- ✅ No dependencies: парсер на sed/grep, без yq/jq
+- ✅ Data flow: yaml (edit) → sync (validate) → sh (source)
 
 ---
 
