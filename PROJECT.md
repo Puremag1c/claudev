@@ -221,9 +221,46 @@ CI/CD GitHub (опционально)
   - CI green (если CI настроен)
   - Сборка артефактов (если CD настроен)
 
-- ✅ **Логирование:**
-  - Файл `logs/claudev.log` в папке проекта
-  - Каждый агент пишет свои действия с timestamp
+- ✅ **Логирование (детально):**
+
+  **Структура:**
+  - Основной лог: `logs/claudev.log` — всё в одном месте для отладки
+  - Ротация по итерации: после релиза `claudev.log` → `logs/archive/iteration-N.log`
+
+  **Формат (plaintext, человекочитаемый):**
+  ```
+  2026-01-23 15:30:45 [AGENT] EVENT: описание
+  2026-01-23 15:30:45 [MANAGER] PHASE: IMPLEMENTATION
+  2026-01-23 15:30:46 [EXECUTOR] TASK_START: claudev-abc "Добавить кнопку"
+  2026-01-23 15:35:12 [EXECUTOR] TASK_DONE: claudev-abc
+  2026-01-23 15:35:13 [EXECUTOR] ERROR: git push failed - remote rejected
+  ```
+
+  **Что логируется (обязательно):**
+  - Старт/финиш каждого агента
+  - Переходы между фазами (INIT → PLANNING → ...)
+  - Задачи: взял (TASK_START), завершил (TASK_DONE), вернул (TASK_RETURNED)
+  - Git операции: commit, merge, revert, push
+  - Все ошибки с контекстом (ERROR: что случилось)
+  - Решения агентов (DECISION: почему выбрал X)
+
+  **Что логируется (опционально, для анализа расхода):**
+  - Токены: `TOKENS: input=1234 output=567 total=1801`
+  - Включается через `config.yaml: log_tokens: true`
+
+  **Хелпер для агентов:**
+  ```bash
+  # core/scripts/log.sh
+  log() {
+    local agent=$1 event=$2 message=$3
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [$agent] $event: $message" >> logs/claudev.log
+  }
+  # Использование: log "MANAGER" "PHASE" "IMPLEMENTATION"
+  ```
+
+  **Безопасность логов:**
+  - НИКОГДА не логировать: пароли, токены API, содержимое .env
+  - Логировать только ID задач, не полное содержимое
 
 - ✅ **Релизный процесс (после итерации):**
   - Manager видит: все задачи closed (+ CI green если CI настроен)
