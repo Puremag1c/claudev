@@ -108,21 +108,19 @@ INIT → PLANNING → HELPERS → PLAN_REVIEW → IMPLEMENTATION → FINAL_REVIE
 ```
 Vision (заказчик)
     ↓
-Tech Writer (собирает требования, задаёт вопросы, формирует ТЗ)
+Tech Writer (собирает требования, задаёт вопросы, формирует ТЗ + config)
     ↓
 Architect (план, разбивка на задачи, зависимости)
     ↓
 Analysts (UX / Security / OPS / Reliability / Architecture)
     ↓
-Senior Analyst (финальный review плана)
-    ↓
-Architect (доработка плана по feedback)
+Architect (доработка плана по feedback аналитиков)
     ↓
 Executors (реализация задач)
     ↓
-Senior Executor (проверка результатов)
+Senior Executor (код ревью, merge, релиз)
     ↓
-CI/CD GitHub
+CI/CD GitHub (опционально)
 ```
 
 ### Управление процессом
