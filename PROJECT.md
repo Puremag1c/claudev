@@ -613,6 +613,191 @@ CI/CD GitHub (опционально)
   - При старте orchestrator сбрасывает все `in_progress` → `open` с notes "Reset: orchestrator restart"
   - Идемпотентность агентов покрывает повторный запуск
 
+---
+
+## Архитектурные решения
+
+**Контекст:** Перед стартом реализации прогнали архитектурный чеклист (failure modes, bottlenecks, data flow, edge cases) и закрыли все найденные пробелы.
+
+### 1. Draft Tech Writer — привязка к задаче
+
+**Проблема:** User тайм-аут, Tech Writer должен сохранить draft и завершиться. Но как продолжить при возврате?
+
+**Решение:** `SPEC.draft.md` + путь в notes задачи
+
+**Workflow:**
+```bash
+# Tech Writer при timeout:
+echo "..." > SPEC.draft.md
+bd update <task-id> --notes="Draft saved: SPEC.draft.md. Awaiting user input."
+bd close <task-id>
+
+# Manager следующая итерация:
+if [ -f SPEC.draft.md ] && user_active; then
+  bd create --title="Finalize SPEC from draft + user input" --type=task
+fi
+```
+
+**Чеклист:**
+- ✅ Failure: Tech Writer упал → draft в файле + notes указывает путь
+- ✅ Data flow: draft → notes → Manager → new task
+- ✅ Edge case: User удалил draft → новый Tech Writer начинает с нуля
+- ✅ LLM-friendly: простые команды, явный маркер (файл + notes)
+
+---
+
+### 2. Iteration numbering — timestamp вместо счётчика
+
+**Проблема:** `iteration.txt` с инкрементом → crash между инкрементом и архивацией → сломанная нумерация
+
+**Решение:** timestamp в имени файла, никакого state file
+
+**Workflow:**
+```bash
+mv logs/current.log "logs/archive/iteration-$(date +%Y%m%d-%H%M%S).log"
+```
+
+**Чеклист:**
+- ✅ Failure: crash в любой момент → ничего не сломается, timestamp уникален
+- ✅ Bottleneck: нет state file = нет race conditions
+- ✅ Data flow: одна операция, атомарная
+- ✅ Edge case: два mv одновременно (невозможно, orchestrator один) → разные timestamps
+- ✅ LLM-friendly: одна команда, без арифметики
+
+---
+
+### 3. Cleanup — раз в сутки по timestamp
+
+**Проблема:** cleanup при каждом старте orchestrator (iteration_delay=5min) → избыточные проверки ФС
+
+**Решение:** `.claudev/last_cleanup.txt` с timestamp, проверка раз в 24h
+
+**Workflow:**
+```bash
+LAST=$(cat .claudev/last_cleanup.txt 2>/dev/null || echo 0)
+NOW=$(date +%s)
+if [ $((NOW - LAST)) -gt 86400 ]; then  # 24 hours
+  find logs/archive -mtime +$KEEP_DAYS -delete
+  echo $NOW > .claudev/last_cleanup.txt
+fi
+```
+
+**Чеклист:**
+- ✅ Failure: cleanup упал → last_cleanup.txt не обновился → попробует снова (OK)
+- ✅ Bottleneck: проверка раз в сутки, не каждые 5 минут
+- ✅ LLM-friendly: простая проверка, один state file
+
+---
+
+### 4. Stats tokens — оценка по размеру
+
+**Проблема:** Claude Code не даёт детальную токен-статистику через API
+
+**Решение:** считаем chars, оцениваем tokens как `chars / 4`
+
+**Workflow:**
+```bash
+INPUT_CHARS=$(wc -c < prompts/architect.md)
+OUTPUT_CHARS=$(wc -c < output.log)
+ESTIMATED_TOKENS=$(( (INPUT_CHARS + OUTPUT_CHARS) / 4 ))
+
+cat > stats/iteration-$TIMESTAMP.yaml <<EOF
+iteration_timestamp: "$TIMESTAMP"
+agents_run: 12
+tasks_completed: 8
+estimated_input_chars: $INPUT_CHARS
+estimated_output_chars: $OUTPUT_CHARS
+estimated_tokens: $ESTIMATED_TOKENS
+EOF
+```
+
+**Чеклист:**
+- ✅ Data flow: chars → оценка токенов (approximation лучше чем ничего)
+- ✅ LLM-friendly: простая математика
+- ✅ Future-proof: можно уточнить парсингом логов позже
+
+---
+
+### 5. Release timing — review+release одной задачей
+
+**Проблема:** Release как отдельная задача → review failed → висячая release task
+
+**Решение:** Senior Executor (Reviewer) делает review И release в одной задаче
+
+**Workflow:**
+```bash
+# Manager → FINAL_REVIEW:
+bd create --title="Review & Release" --type=task --assignee=senior-executor
+
+# Senior Executor:
+# 1. Review code
+# 2. If PASS:
+gh pr create && gh pr merge
+bd close <task> --notes="Reviewed & released"
+# 3. If FAIL:
+bd create <tasks for fixes>
+bd close <task> --notes="Review failed, fixes created"
+# Manager sees fail → phase back to IMPLEMENTATION
+```
+
+**Чеклист:**
+- ✅ Failure: review failed → нет висячей release task
+- ✅ Edge case: нет промежуточного состояния
+- ✅ LLM-friendly: одна задача = review + conditional release
+- ✅ Изоляция: Senior Executor владеет всем процессом
+
+---
+
+### 6. PR workflow — fail hard без remote
+
+**Проблема:** Local merge без PR = no code review, опасно автоматизировать
+
+**Решение:** если нет GitHub remote → error, остановка, ждём User
+
+**Workflow:**
+```bash
+if ! git remote -v | grep -q github; then
+  log "ERROR: No GitHub remote. Cannot auto-release. Manual action required."
+  exit 1
+fi
+
+gh pr create && gh pr merge
+```
+
+**Чеклист:**
+- ✅ Edge case: локальный проект → явная ошибка, не silent fail
+- ✅ Safety: не делаем то что может быть опасным (local merge без review)
+- ✅ LLM-friendly: простая проверка
+
+---
+
+### 7. Config reload — каждую итерацию
+
+**Проблема:** config read только при старте → срочные изменения применяются через iteration_delay (может быть 30+ минут)
+
+**Решение:** orchestrator читает config в начале каждой итерации
+
+**Workflow:**
+```bash
+while true; do
+  source .claudev/config.yaml  # read fresh config
+  log "Iteration started with config: iteration_delay=$ITERATION_DELAY"
+
+  detect_phase
+  run_agents
+
+  sleep $ITERATION_DELAY
+done
+```
+
+**Чеклист:**
+- ✅ Data flow: config → iteration start → применяется сразу
+- ✅ Предсказуемость: изменения применяются максимум через iteration_delay
+- ✅ Edge case: срочные изменения → User останавливает orchestrator и перезапускает
+- ✅ LLM-friendly: одна команда `source`
+
+---
+
 **Отложено на следующие итерации:**
 - [ ] OS Notifications (macOS/Linux)
 - [ ] Webhook уведомления (Telegram, Slack)
