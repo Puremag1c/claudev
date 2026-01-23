@@ -179,7 +179,7 @@ CI/CD GitHub (опционально)
 
 ## Текущий статус
 
-**Статус:** Проектирование завершено, архитектурный аудит пройден, готово к реализации
+**Статус:** Проектирование завершено, финальный архитектурный аудит пройден (10 угроз найдено и закрыто), готово к реализации
 
 **Структура:**
 - [x] core/ — агенты, команды, скрипты (требуют обновления)
@@ -926,41 +926,400 @@ grep "STATS.*RUN" logs/claudev.log | \
 
 ---
 
-### 11. Config reload — hybrid yaml→bash
+### 11. Orchestrator lock — atomic через noclobber (FINAL)
 
-**Проблема:** `source config.yaml` не работает (yaml != bash syntax), но yaml удобнее для User
+**Проблема:** Race condition при параллельном старте — два процесса могут создать lock file одновременно
 
-**Решение:** Config.yaml (user-friendly) → sync → config.sh (system-friendly)
+**Решение:** Atomic file creation через `set -C` (noclobber mode)
 
 **Workflow:**
 ```bash
-# .claudev/config.yaml (User редактирует)
-ci: false
-cd: false
-max_parallel_executors: 3
-timeouts:
-  task: 10m
-  user_input: 30m
+LOCK_FILE=".claudev/orchestrator.lock"
 
-# core/scripts/sync-config.sh (конвертация yaml→sh)
-parse_yaml .claudev/config.yaml > .claudev/config.sh
-# Simple parser: grep/sed, no external dependencies (yq/jq)
-
-# Orchestrator auto-sync перед reload:
-if [ .claudev/config.yaml -nt .claudev/config.sh ]; then
-  log "INFO" "config.yaml updated, syncing..."
-  ./scripts/sync-config.sh
+# Atomic lock: noclobber fails если файл существует
+if ! (set -C; echo $$ > "$LOCK_FILE") 2>/dev/null; then
+    # Lock exists, check if stale
+    OLD_PID=$(cat "$LOCK_FILE" 2>/dev/null || echo "0")
+    if kill -0 "$OLD_PID" 2>/dev/null; then
+        echo "Orchestrator already running (PID $OLD_PID)"
+        exit 1
+    else
+        echo "Removing stale lock (PID $OLD_PID not found)"
+        rm -f "$LOCK_FILE"
+        # Retry once
+        if ! (set -C; echo $$ > "$LOCK_FILE") 2>/dev/null; then
+            echo "Failed to acquire lock (race with another process?)"
+            exit 1
+        fi
+    fi
 fi
 
-source .claudev/config.sh  # ✅ Works
+trap "rm -f '$LOCK_FILE'" EXIT
 ```
 
 **Чеклист:**
-- ✅ Failure: yaml невалиден → используем старый config.sh (graceful)
-- ✅ LLM-friendly: orchestrator просто `source config.sh`
-- ✅ UX: User редактирует yaml (привычно), система работает с bash
-- ✅ No dependencies: парсер на sed/grep, без yq/jq
-- ✅ Data flow: yaml (edit) → sync (validate) → sh (source)
+- ✅ Race condition невозможен (atomic FS operation)
+- ✅ Stale lock detection (kill -0 проверка)
+- ✅ Graceful cleanup (trap EXIT)
+- ✅ LLM-friendly: простая логика
+
+---
+
+### 12. Config — bash напрямую (FINAL)
+
+**Проблема:** YAML parsing сложен, race conditions с timestamp, нужна синхронизация
+
+**Решение:** Отказ от YAML, config.sh напрямую (bash syntax)
+
+**Workflow:**
+```bash
+# .claudev/config.sh (User редактирует напрямую)
+CI_ENABLED=false
+CD_ENABLED=false
+MAX_PARALLEL_EXECUTORS=3
+TASK_TIMEOUT="10m"
+USER_INPUT_TIMEOUT="30m"
+RETRY_LIMIT=3
+LOG_TOKENS=false
+CLEANUP_ENABLED=false
+CLEANUP_KEEP_DAYS=30
+
+# Orchestrator просто source:
+source .claudev/config.sh
+```
+
+**Чеклист:**
+- ✅ Нет парсинга (меньше кода, меньше багов)
+- ✅ Нет race conditions (атомарный read)
+- ✅ User-friendly (bash синтаксис простой, комментарии в файле)
+- ✅ Reload каждую итерацию без доп. логики
+
+---
+
+### 13. GitHub check — через gh CLI с fallback (FINAL)
+
+**Проблема:** `grep github` не ловит enterprise/custom domains, что если gh CLI не установлен?
+
+**Решение:** Проверка через gh CLI + graceful fallback к local merge
+
+**Workflow:**
+```bash
+# Хелпер для проверки
+check_github_pr_available() {
+    command -v gh &>/dev/null && gh auth status &>/dev/null
+}
+
+# Senior Executor при merge:
+if check_github_pr_available; then
+    gh pr create --fill
+    gh pr merge --squash --auto
+else
+    log "INFO" "No gh CLI or not authenticated, performing local merge"
+    git checkout main
+    git merge --no-ff "task/beads-$TASK_ID"
+    git push 2>/dev/null || log "WARN" "Cannot push (no remote or no access)"
+fi
+```
+
+**Чеклист:**
+- ✅ Ловит любые варианты GitHub (enterprise, custom)
+- ✅ Проверяет наличие gh CLI + авторизацию
+- ✅ Graceful degradation (local merge если gh недоступен)
+- ✅ LLM-friendly: простая функция-хелпер
+
+---
+
+### 14. Beads daemon — проверка каждую итерацию (FINAL)
+
+**Проблема:** Редкая проверка (каждые 10 итераций) → daemon упал → работаем без sync → data loss
+
+**Решение:** Проверка в начале КАЖДОЙ итерации (дёшево, критично)
+
+**Workflow:**
+```bash
+while true; do
+    # 1. Check daemon (fast, ~10-50ms)
+    if ! bd sync --status &>/dev/null; then
+        log "FATAL" "Beads daemon not running. Run: bd daemon start"
+        exit 1
+    fi
+
+    # 2. Load config
+    source .claudev/config.sh
+
+    # 3. Detect phase & run agents
+    ...
+
+    sleep "$ITERATION_DELAY"
+done
+```
+
+**Чеклист:**
+- ✅ Fail fast (защита от data loss)
+- ✅ Дёшево (~10-50ms overhead)
+- ✅ Критично (sync обязателен для корректности)
+
+---
+
+### 15. Executor rebase — WIP commit для сохранности (FINAL)
+
+**Проблема:** Conflict → abort → вся работа потеряна (задачи маленькие, но гарантия не помешает)
+
+**Решение:** WIP commit перед rebase + squash в конце (clean history)
+
+**Workflow:**
+```bash
+# 1. WIP commit (сохраняем работу)
+git add -A
+git commit -m "WIP: task-$TASK_ID (pre-rebase)"
+
+# 2. Rebase
+git fetch origin main
+if ! git rebase origin/main; then
+    # Conflict detected
+    git rebase --abort
+
+    log "WARN" "Rebase conflict, escalating to Architect"
+
+    # Работа сохранена в WIP commit, можно push
+    git push --force-with-lease -u origin "task/beads-$TASK_ID"
+
+    # Эскалация
+    bd create --title="Resolve rebase conflict: $TASK_TITLE" \
+        --type=task --priority=0 --assignee=architect \
+        --notes="Branch: task/beads-$TASK_ID, conflicts with main"
+
+    bd update "$TASK_ID" --status=blocked --label=needs-rebase
+    exit 0
+fi
+
+# 3. Squash WIP commit (clean history)
+git reset --soft HEAD~1
+git commit -m "$COMMIT_MESSAGE"
+git push --force-with-lease -u origin "task/beads-$TASK_ID"
+
+bd update "$TASK_ID" --label=needs-review
+```
+
+**Чеклист:**
+- ✅ Работа НИКОГДА не теряется (WIP commit)
+- ✅ Clean history в итоге (squash перед push)
+- ✅ Architect получает ветку с работой
+- ✅ Не усложняет (~5 строк кода)
+
+---
+
+### 16. Executors backpressure — лимит open PR (FINAL)
+
+**Проблема:** Executors создают PR быстрее чем Senior Executor мержит → очередь растёт бесконечно
+
+**Решение:** Queue limit через MAX_PARALLEL_EXECUTORS
+
+**Workflow:**
+```bash
+# run-executors.sh перед запуском:
+OPEN_PRS=$(gh pr list --state open --json number --jq 'length' 2>/dev/null || echo 0)
+
+if [ "$OPEN_PRS" -ge "$MAX_PARALLEL_EXECUTORS" ]; then
+    log "INFO" "PR queue full ($OPEN_PRS/$MAX_PARALLEL_EXECUTORS), waiting"
+    exit 0
+fi
+
+# Иначе запускаем новых Executors
+...
+```
+
+**Чеклист:**
+- ✅ Natural flow control (Senior Executor мержит → слот освобождается)
+- ✅ Bottleneck управляется автоматически
+- ✅ LLM-friendly: простая проверка
+
+---
+
+### 17. Stats tokens — простая оценка для статистики (FINAL)
+
+**Проблема:** Claude Code не даёт точную токен-статистику, нужна хотя бы оценка
+
+**Решение:** Простой подсчёт chars → tokens (для info, не для billing)
+
+**Workflow:**
+```bash
+# Orchestrator при запуске агента:
+run_agent() {
+    local prompt_file=".claudev/prompts/${agent}-${task_id}.txt"
+
+    # Формируем промпт
+    cat ".claude/agents/${agent}.md" > "$prompt_file"
+    echo -e "\n---\nTASK_ID: $task_id\n..." >> "$prompt_file"
+
+    # Считаем input
+    local input_chars=$(wc -c < "$prompt_file")
+    local estimated_tokens=$((input_chars / 4))
+
+    # Запускаем
+    timeout 10m claude --model $model --print < "$prompt_file" | tee -a logs/claudev.log
+
+    # Логируем stats
+    echo "$agent,$input_chars,$estimated_tokens" >> stats/current-iteration.csv
+
+    rm "$prompt_file"
+}
+```
+
+**Чеклист:**
+- ✅ Простая оценка (примерная, но достаточно)
+- ✅ CSV для постобработки
+- ✅ LLM-friendly: одна команда wc
+
+---
+
+### 18. Graceful shutdown — smart reset (5min threshold) (FINAL)
+
+**Проблема:** Сбрасываем все `in_progress` → дублирование работы если агент успел close но мы не увидели
+
+**Решение:** Reset только старых задач (>5min), свежие оставляем
+
+**Workflow:**
+```bash
+cleanup() {
+    log "INFO" "Shutting down gracefully..."
+
+    # SIGTERM детям (даём время завершиться)
+    pkill -P $$ -TERM
+    sleep 5
+    pkill -P $$ -KILL 2>/dev/null
+
+    # Reset только старых задач (>5min in_progress)
+    for task_id in $(bd list --status=in_progress --format=json | jq -r '.[].id'); do
+        claimed_ts=$(bd show "$task_id" --format=json | jq -r '.updated_at')
+        claimed_epoch=$(date -j -f "%Y-%m-%dT%H:%M:%S" "$claimed_ts" +%s 2>/dev/null || date -d "$claimed_ts" +%s)
+        now_epoch=$(date +%s)
+        age=$((now_epoch - claimed_epoch))
+
+        if [ "$age" -gt 300 ]; then  # 5 minutes
+            log "INFO" "Resetting stale task $task_id (age: ${age}s)"
+            bd update "$task_id" --status=open --notes="Reset: stale at shutdown (${age}s old)"
+        else
+            log "INFO" "Keeping recent task $task_id (age: ${age}s)"
+        fi
+    done
+
+    rm -f "$LOCK_FILE"
+    exit 0
+}
+
+trap cleanup SIGINT SIGTERM
+```
+
+**Чеклист:**
+- ✅ Свежие задачи (<5min) не трогаем
+- ✅ Старые задачи (>5min) сбрасываем
+- ✅ Minimal duplication
+
+---
+
+### 19. Tech Writer draft — TTL 24h (FINAL)
+
+**Проблема:** Draft устаревает (user вернулся через 2 недели), но Manager пытается продолжить
+
+**Решение:** TTL 24h + архивация старых drafts
+
+**Workflow:**
+```bash
+# Manager при INIT фазе:
+if [ -f SPEC.draft.md ]; then
+    draft_age=$(( $(date +%s) - $(stat -f %m SPEC.draft.md 2>/dev/null || stat -c %Y SPEC.draft.md) ))
+
+    if [ "$draft_age" -gt 86400 ]; then
+        # Draft >24h old
+        log "INFO" "Found old draft (${draft_age}s old), archiving"
+        mv SPEC.draft.md "SPEC.draft.$(date +%Y%m%d).old"
+
+        # Start fresh
+        bd create --title="Gather requirements (fresh start)" \
+            --type=task --assignee=tech-writer --priority=0
+    else
+        # Draft fresh, continue
+        bd create --title="Finalize SPEC from draft" \
+            --type=task --assignee=tech-writer --priority=0 \
+            --notes="Continue from SPEC.draft.md"
+    fi
+fi
+```
+
+**Чеклист:**
+- ✅ 24h TTL (разумный баланс)
+- ✅ Старый draft архивируется (не теряется)
+- ✅ User видит что началось заново
+
+---
+
+### 20. Circular dependencies — check после каждого add (FINAL)
+
+**Проблема:** Architect добавляет deps пачкой → цикл обнаруживается поздно, сложно откатить
+
+**Решение:** Инструкция в промпте — проверка после КАЖДОЙ зависимости
+
+**Промпт Architect (секция dependencies):**
+```markdown
+## Добавление зависимостей
+
+**КРИТИЧНО:** Проверяй cycles ПОСЛЕ КАЖДОЙ зависимости:
+
+```bash
+# Для каждой пары:
+bd dep add <task-id> <depends-on-id>
+
+# СРАЗУ проверяем
+if bd dep cycles 2>&1 | grep -q "cycle"; then
+    echo "ERROR: Cycle detected with last dependency"
+    bd dep remove <task-id> <depends-on-id>
+    # Пересмотри dependency graph
+fi
+```
+
+**Если cycles detection failed после всех deps:**
+1. Выведи граф: `bd dep graph`
+2. Найди цикл вручную
+3. Удали одну зависимость из цикла
+4. Залогируй: почему удалил именно эту
+```
+
+**Чеклист:**
+- ✅ Обнаруживаем цикл сразу (easy rollback)
+- ✅ Architect знает какая зависимость создала проблему
+- ✅ LLM-friendly (простая инструкция)
+
+---
+
+## Итоги финального архитектурного аудита (23 января 2026)
+
+**Проведён полный аудит перед началом реализации.**
+
+### Найдено и закрыто угроз: 10
+
+**Критичные (data loss, race conditions): 4**
+1. ✅ Orchestrator lock race condition → Решение #11: atomic через `set -C`
+2. ✅ Config sync race condition → Решение #12: bash config напрямую (отказ от YAML)
+3. ✅ Executor rebase потеря работы → Решение #15: WIP commit перед rebase
+4. ✅ Graceful shutdown lost in-progress → Решение #18: smart reset (5min threshold)
+
+**Средние (неточность, edge cases): 6**
+5. ✅ GitHub remote detection fragile → Решение #13: проверка через gh CLI + fallback
+6. ✅ Beads daemon check недостаточная частота → Решение #14: каждую итерацию
+7. ✅ Senior Executor backpressure отсутствует → Решение #16: queue limit через MAX_PARALLEL_EXECUTORS
+8. ✅ Stats tokens неточность → Решение #17: простая оценка (chars/4), достаточно для статистики
+9. ✅ Tech Writer draft orphaned → Решение #19: TTL 24h + архивация
+10. ✅ Circular deps false positive → Решение #20: check после каждого dep add
+
+**Все решения:**
+- Следуют принципу минимальной сложности
+- LLM-friendly (простые команды, чёткая логика)
+- Атомарные операции где возможно
+- Graceful degradation где нужно
+- Fail fast на критичных проблемах
+
+**Вывод:** Система готова к реализации. Все критичные угрозы закрыты.
 
 ---
 
