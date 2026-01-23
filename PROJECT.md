@@ -58,12 +58,16 @@ target-project/
 
 | Агент | Модель | Роль |
 |-------|--------|------|
-| manager | Sonnet | Координатор, хранит состояние в Beads, принимает решения |
-| architect | Opus | Создаёт план из SPEC.md, назначает модели задачам |
-| coder | По задаче | Реализует ОДНУ задачу за сессию |
-| reviewer | Sonnet | Проверяет код, создаёт баг-репорты |
-| analyst | Opus | Оценивает готовность плана |
-| helper-* | Sonnet | Аудит плана (architecture, reliability, ux, ops) |
+| manager | Sonnet | Stateless координатор, определяет фазу по beads, единая точка входа |
+| tech-writer | Opus | Собирает требования, задаёт вопросы, формирует SPEC.md |
+| architect | Opus | Создаёт план, назначает модели задачам, расставляет dependencies |
+| analyst-ux | Sonnet | Проверяет UX, добавляет задачи (только добавляет, не удаляет) |
+| analyst-security | Sonnet | Проверяет безопасность, добавляет задачи |
+| analyst-ops | Sonnet | Проверяет операционные аспекты, добавляет задачи |
+| analyst-reliability | Sonnet | Проверяет надёжность, edge cases, добавляет задачи |
+| analyst-architecture | Sonnet | Проверяет архитектуру, добавляет задачи |
+| executor | По задаче | Реализует ОДНУ задачу, работает в своей git ветке |
+| senior-executor | Opus | Последовательно валидирует код, мержит в main |
 
 ### Скрипты (core/scripts/)
 
@@ -162,7 +166,19 @@ CI/CD GitHub
 
 - ✅ Analysts — оставляем всех 5 (UX, Security, OPS, Reliability, Architecture). Дёшево запустить, дорого пропустить ошибки.
 
+- ✅ **Executors — git workflow:**
+  - Architect назначает модель (haiku/sonnet/opus) каждой задаче по сложности
+  - Architect расставляет dependencies для возможности параллельной работы
+  - Executor создаёт ветку `task/beads-xxx`, работает, коммитит
+  - Executor помечает задачу done → разблокирует зависимые
+  - **КРИТИЧНО:** Захват задачи ТОЛЬКО через `bd update <id> --claim` (атомарный, fails if already claimed)
+
+- ✅ **Senior Executor (Opus):**
+  - Работает последовательно — quality gate перед merge
+  - Проверяет код, мержит в main
+  - Merge conflict — сам решает, максимум эскалирует к Architect
+  - Если код плохой — НЕ закрывает задачу, возвращает в `bd ready` (меняет статус, обновляет description с причиной)
+
 **Осталось обсудить:**
-- [ ] Executors — параллельно или последовательно, git workflow
 - [ ] Тестирование — кто пишет тесты
 - [ ] MVP системы — что реализуем первым
