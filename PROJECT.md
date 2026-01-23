@@ -196,5 +196,99 @@ CI/CD GitHub
   - Интерактивный процесс — вопрос → ответ → возможны уточнения
   - Система паузит пока не получит ответ
 
-**Осталось обсудить:**
-- [ ] Ещё что-то упущено?
+- ✅ **MVP scope:** Tech Writer спрашивает "что минимум нужно для запуска?"
+
+- ✅ **Стек и язык:** Architect выбирает, если не указано в ТЗ на этапе Tech Writer
+
+- ✅ **CI/CD — опционально (GitHub Actions):**
+  - **CI есть:** Senior Executor после merge ждёт CI (`gh run watch`), CI failed → bug issue
+  - **CI нет:** Senior Executor проверяет только код + тесты локально
+  - **CD есть:** релиз через `gh release create`
+  - **CD нет:** релиз = merge в main + git tag
+
+- ✅ **Параллельность Executors:**
+  - Переменная `MAX_PARALLEL_EXECUTORS` (default: 3)
+  - Architect может переопределить в SPEC.md если нужно больше/меньше
+
+- ✅ **Бюджет:**
+  - Рассчитано на подписку MAX ($200/мес)
+  - ~2.5-3M токенов на итерацию — укладываемся с запасом
+  - Логируем расход для анализа (в будущем)
+
+- ✅ **Quality gate (Senior Executor проверяет):**
+  - Код ревью (обязательно)
+  - Тесты проходят (обязательно, локально)
+  - Линтинг (если настроен)
+  - Покрытие не упало (если настроено)
+  - CI green (если CI настроен)
+  - Сборка артефактов (если CD настроен)
+
+- ✅ **Логирование:**
+  - Файл `logs/claudev.log` в папке проекта
+  - Каждый агент пишет свои действия с timestamp
+
+- ✅ **Релизный процесс (после итерации):**
+  - Manager видит: все задачи closed (+ CI green если CI настроен)
+  - Определяется тип версии: bugfix→patch, feature→minor, breaking→major
+  - Обновляется version в package.json / mix.exs / etc.
+  - Генерируется CHANGELOG.md из closed задач итерации
+  - Создаётся git tag
+  - **Если CD настроен:** `gh release create` с артефактами
+  - **Если CD нет:** итерация завершена, tag в main
+
+- ✅ **Secrets и безопасность (средний уровень):**
+  - `.gitignore`: .env, .env.*, *.pem, *.key, credentials.*, secrets/
+  - Pre-commit hook: `gitleaks protect --staged` (install.sh добавляет)
+  - Для тестов — mocks, не реальные API
+  - CI использует GitHub Secrets (агенты их не видят)
+  - Инструкция агентам: "НИКОГДА не читай .env, не логируй secrets, не пиши secrets в beads"
+  - Senior Executor проверяет diff на паттерны: sk-, api_key=, password=
+  - **Остаточный риск:** агент технически может прочитать .env — митигируем инструкциями
+
+- ✅ **Merge conflicts:**
+  - Простой конфликт (разные места) — Senior Executor решает сам
+  - Семантический (одна функция) — откладывает merge, создаёт задачу для Architect
+  - Architect решает: переписать или объединить
+
+- ✅ **Rollback при проблемах после merge:**
+  - **Если CI есть и упал:** Senior Executor делает `git revert`, задача → open с "CI failed: [error]"
+  - **Если CI нет:** Senior Executor проверяет тесты локально ДО merge, rollback не нужен
+  - Executor получает задачу снова с контекстом ошибки
+
+- ✅ **User silence (таймаут 30 мин):**
+  - Tech Writer сохраняет draft, завершается
+  - При следующем запуске: Manager автоматически показывает незакрытый вопрос user'у
+
+- ✅ **Кто делает релиз:** Senior Executor
+  - Логичное продолжение: проверил → замержил → CI passed → релиз
+
+- ✅ **Статусы задач в beads:**
+  - `open` → задача создана, ждёт исполнителя
+  - `in_progress` → Executor работает (через `bd update --claim`)
+  - `in_progress` + label `needs-review` → Executor закончил, ждёт Senior Executor
+  - `closed` → Senior Executor замержил, CI passed
+  - `open` (возврат) → CI failed после merge, задача вернулась с ошибкой в notes
+
+- ✅ **Конфигурация проекта:**
+  - Tech Writer уточняет на старте: CI есть? CD нужен? Параллельность?
+  - Сохраняется в `.claudev/config.yaml`
+  - Defaults:
+    ```yaml
+    ci: false
+    cd: false
+    max_parallel_executors: 3
+    timeouts:
+      task: 10m
+      user_input: 30m
+    retry_limit: 3
+    ```
+
+- ✅ **Приоритет задач:**
+  - `bd ready` сортирует по приоритету (P0 → P4)
+  - Executor берёт первую из списка
+  - Manager НЕ назначает задачи — избыточно
+
+**Отложено на следующие итерации:**
+- [ ] OS Notifications (macOS/Linux)
+- [ ] Webhook уведомления (Telegram, Slack)
+- [ ] Автодокументация (README, API docs)
