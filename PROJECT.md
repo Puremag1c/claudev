@@ -69,14 +69,59 @@ target-project/
 | executor | По задаче | Реализует ОДНУ задачу, работает в своей git ветке |
 | senior-executor | Opus | Последовательно валидирует код, мержит в main |
 
+### Формат промптов агентов
+
+Каждый файл агента (`core/agents/*.md`) содержит:
+
+```markdown
+---
+name: agent-name
+description: Краткое описание роли
+model: opus|sonnet|haiku
+---
+
+# Роль: Название
+
+Краткое описание что делает агент.
+
+## КРИТИЧЕСКИЕ ПРАВИЛА
+- Что НИКОГДА не делать
+- Что ВСЕГДА делать первым
+
+## Алгоритм работы
+1. Первый шаг (с примером команды)
+2. Второй шаг
+3. ...
+
+## Инструменты
+- `bd` команды которые использует
+- `git` операции если нужны
+- Другие скрипты
+
+## Завершение
+- Как агент понимает что закончил
+- Что делает в конце (close задачи, log, etc.)
+```
+
+**Принципы написания промптов для LLM:**
+- Простые изолированные команды (одна операция = одна команда)
+- Явные примеры с `bd create`, `bd close`, `git commit`
+- Чёткие критерии завершения
+- Минимум условной логики (if/else)
+
 ### Скрипты (core/scripts/)
 
 | Скрипт | Назначение |
 |--------|------------|
 | orchestrator.sh | Главный цикл, пингует менеджера каждые N секунд |
-| init-manager.sh | Инициализация состояния менеджера в Beads |
-| claim-task.sh | Атомарный захват задачи (без race conditions) |
 | detect-phase.sh | Определение текущей фазы проекта |
+| run-analysts.sh | Параллельный запуск 5 analysts |
+| run-executors.sh | Параллельный запуск executors (до MAX_PARALLEL) |
+| log.sh | Хелпер для логирования в logs/claudev.log |
+
+**Устаревшие (удалить):**
+- claim-task.sh — заменён на `bd update <id> --claim`
+- init-manager.sh — Manager stateless, не нужна инициализация
 | run-helpers.sh | Параллельный запуск помощников |
 | run-coders.sh | Параллельный запуск кодеров |
 
@@ -120,6 +165,8 @@ Executors (реализация задач)
     ↓
 Senior Executor (код ревью, merge, релиз)
     ↓
+Architect (FINAL_REVIEW — проверка целостности)
+    ↓
 CI/CD GitHub (опционально)
 ```
 
@@ -132,19 +179,30 @@ CI/CD GitHub (опционально)
 
 ## Текущий статус
 
-Базовая структура (набросок):
-- [x] core/ — агенты, команды, скрипты
+**Статус:** Проектирование завершено, готово к реализации
+
+**Структура:**
+- [x] core/ — агенты, команды, скрипты (требуют обновления)
 - [x] templates/ — шаблоны SPEC.md и CLAUDE.md
-- [x] install.sh — установщик
+- [x] install.sh — установщик (требует обновления)
 - [x] docs/ — документация
 
-**Статус:** Требуется редизайн под новые требования
+**Следующий шаг:** Написание промптов для всех агентов (10 задач в beads)
 
 **Обсуждено (22 января 2026):**
 - ✅ Tech Writer — Opus, сам пишет в beads, режимы (новый/итерация)
 - ✅ Manager — Sonnet, stateless, определяет фазу по beads
 - ✅ Архитектура — subagents + beads, каждый агент сам пишет состояние
 - ✅ Отказоустойчивость — retry 3x, эскалация к Architect, лимит 2
+- ✅ **Timeout enforcement:**
+  - Orchestrator запускает агентов через `timeout 10m claude -p "..."`
+  - При таймауте: процесс убивается, логируется, retry counter++
+  - Retry history хранится в notes задачи:
+    ```
+    retry 1: 2026-01-23 15:30 - timeout
+    retry 2: 2026-01-23 15:45 - timeout
+    ```
+  - После 3 retry → эскалация к Architect
 - ✅ UX — 4 статуса, варианты для user, clarification vs decision
 - ✅ Итерации — SPEC.md с секциями Iteration N
 
@@ -169,11 +227,19 @@ CI/CD GitHub (опционально)
   - Architect расставляет dependencies для возможности параллельной работы
   - Executor создаёт ветку `task/beads-xxx`, работает, коммитит
   - Executor помечает задачу done → разблокирует зависимые
-  - **КРИТИЧНО:** Захват задачи ТОЛЬКО через `bd update <id> --claim` (атомарный, fails if already claimed)
+  - **КРИТИЧНО:** Захват задачи ТОЛЬКО через `bd update <id> --claim`
+  - ✅ Проверено: bd CLI гарантирует атомарность (fails if already claimed)
+  - Race condition между Executors невозможен
 
 - ✅ **Senior Executor (Opus):**
   - Работает последовательно — quality gate перед merge
-  - Проверяет код, мержит в main
+  - Проверяет код, мержит через PR (не локальный merge):
+    - `gh pr create` из task/beads-xxx в main
+    - `gh pr merge --squash` после проверки
+    - GitHub гарантирует атомарность, при падении PR остаётся open
+  - После merge — cleanup веток:
+    - `git push origin --delete task/beads-xxx`
+    - `git branch -d task/beads-xxx`
   - Merge conflict — сам решает, максимум эскалирует к Architect
   - Если код плохой — НЕ закрывает задачу, возвращает в `bd ready` (меняет статус, обновляет description с причиной)
 
@@ -225,7 +291,8 @@ CI/CD GitHub (опционально)
 
   **Структура:**
   - Основной лог: `logs/claudev.log` — всё в одном месте для отладки
-  - Ротация по итерации: после релиза `claudev.log` → `logs/archive/iteration-N.log`
+  - Ротация по итерации: `mv logs/claudev.log logs/archive/iteration-N.log` (атомарно)
+  - Race condition safe: `log.sh` использует `>>` (append), создаёт новый файл если старый перемещён
 
   **Формат (plaintext, человекочитаемый):**
   ```
@@ -279,6 +346,7 @@ CI/CD GitHub (опционально)
   - Инструкция агентам: "НИКОГДА не читай .env, не логируй secrets, не пиши secrets в beads"
   - Senior Executor проверяет diff на паттерны: sk-, api_key=, password=
   - **Остаточный риск:** агент технически может прочитать .env — митигируем инструкциями
+  - **Pre-commit hook fail:** не пропускаем, считаем как обычный fail → retry → эскалация к Architect
 
 - ✅ **Merge conflicts:**
   - Простой конфликт (разные места) — Senior Executor решает сам
@@ -305,8 +373,9 @@ CI/CD GitHub (опционально)
   - `open` (возврат) → CI failed после merge, задача вернулась с ошибкой в notes
 
 - ✅ **Конфигурация проекта:**
-  - Tech Writer уточняет на старте: CI есть? CD нужен? Параллельность?
-  - Сохраняется в `.claudev/config.yaml`
+  - **Bootstrap:** install.sh копирует `templates/config.template.yaml` → `.claudev/config.yaml`
+  - Tech Writer может обновить config если user хочет CI/CD
+  - Система стартует с defaults, не блокируется на отсутствии конфига
   - Defaults:
     ```yaml
     ci: false
@@ -316,17 +385,23 @@ CI/CD GitHub (опционально)
       task: 10m
       user_input: 30m
     retry_limit: 3
+    log_tokens: false
+    cleanup:
+      enabled: false    # по умолчанию храним всё
+      keep_days: 30     # если enabled: удаляем старше 30 дней
     ```
+  - **Cleanup** (если enabled): `find logs/archive stats -mtime +$KEEP_DAYS -delete`
 
 - ✅ **Приоритет задач:**
   - `bd ready` сортирует по приоритету (P0 → P4)
   - Executor берёт первую из списка
   - Manager НЕ назначает задачи — избыточно
 
-- ✅ **Атомарный claim задачи:**
+- ✅ **Атомарный claim задачи:** (проверено в bd CLI)
   - Executor использует `bd update <id> --claim`
   - Beads гарантирует атомарность (fails if already claimed)
   - Если занято — Executor берёт следующую задачу
+  - Race condition между параллельными Executors невозможен
 
 - ✅ **Лимит эскалаций исчерпан:**
   - После 2 эскалаций → задача получает label `blocked:escalation-limit`
@@ -334,6 +409,14 @@ CI/CD GitHub (опционально)
   - Зависимое дерево автоматически блокируется (через deps)
   - Система продолжает работать по независимым задачам
   - В финальном отчёте — секция "Blocked tasks" с объяснениями
+
+- ✅ **Лимит времени итерации:**
+  - Жёсткого лимита нет — большой проект может легитимно занять много часов
+  - Лимиты через retry/эскалации уже защищают от зависания
+  - **Мониторинг:**
+    - Каждые 2h: `log "ORCHESTRATOR" "INFO" "Iteration running for Xh, Y tasks remaining"`
+    - Если ВСЕ оставшиеся задачи blocked: `log "ORCHESTRATOR" "WARN" "All remaining tasks blocked, stopping"` → система останавливается
+  - User может посмотреть лог и остановить вручную если нужно
 
 - ✅ **Circular dependencies:**
   - Architect после создания задач запускает `bd dep cycles`
@@ -345,15 +428,53 @@ CI/CD GitHub (опционально)
   - Очередь PR = система работает быстрее чем можем безопасно мержить
   - Bottleneck здесь — фича, не баг
 
-- ✅ **SPEC.md validation:**
-  - Tech Writer перед передачей Architect проверяет:
-    - Файл не пустой
-    - Есть обязательные секции (Goal, MVP scope, etc.)
-  - Если битый/неполный — переспрашивает user
+- ✅ **Tech Writer — подход к SPEC.md:**
+  - SPEC.md — результат диалога, не заполнение шаблона
+  - Tech Writer адаптируется под клиента, а не наоборот
+  - **Если Architect не понимает SPEC.md:**
+    - Создаёт задачу: `bd create --title="Clarify SPEC.md: <что непонятно>" --type=task --priority=0`
+    - Логирует и завершает работу
+    - Manager видит P0 → запускает Tech Writer
+    - Tech Writer читает reason, задаёт user уточняющий вопрос
+  - **Поведение:**
+    - Слушает что хочет клиент
+    - Задаёт уточняющие вопросы по неясным местам
+    - Предлагает популярные решения если клиент не знает:
+      - "Обычно для такого используют PostgreSQL, подойдёт?"
+      - "Для авторизации чаще всего JWT или сессии. Вам важна разница?"
+    - Не требует ответа на всё — неопределённое отдаёт Architect
+  - **Валидация перед передачей Architect:**
+    - Не "есть ли секция X", а:
+      - Понятно ЧТО система должна делать?
+      - Понятно ДЛЯ КОГО?
+      - Понятно что МИНИМУМ нужно для первого релиза?
+    - Если да — структурирует и передаёт
+  - **Результат:** Architect получает хорошо структурированную суть, не формальный документ
 
 - ✅ **Beads daemon down:**
   - Система падает, пишет user
   - Не пытаемся работать без sync — это путь к потере данных
+  - **Проверка:** Orchestrator вызывает `bd sync --status`
+    - При старте (обязательно)
+    - В цикле каждые 10 итераций (не каждый раз, чтобы не замедлять)
+  - При падении: `log "ORCHESTRATOR" "FATAL" "Beads daemon not running"` + exit 1
+
+- ✅ **Single instance (lock file):**
+  - Orchestrator при старте создаёт `.claudev/orchestrator.lock` с PID
+  - Если lock есть и процесс жив (`kill -0`) → exit "already running"
+  - Если lock от мёртвого процесса → stale lock, удаляем и продолжаем
+  - `trap "rm -f .claudev/orchestrator.lock" EXIT` для cleanup
+  - **Stale lock recovery** (при SIGKILL trap не срабатывает):
+    ```bash
+    if [ -f "$LOCK_FILE" ]; then
+        OLD_PID=$(cat "$LOCK_FILE")
+        if kill -0 "$OLD_PID" 2>/dev/null; then
+            echo "Orchestrator already running (PID $OLD_PID)"; exit 1
+        else
+            echo "Removing stale lock file"; rm -f "$LOCK_FILE"
+        fi
+    fi
+    ```
 
 - ✅ **Merge conflicts (промпт Senior Executor):**
   - Мержить по приоритету задач (P0 первым)
@@ -383,6 +504,72 @@ CI/CD GitHub (опционально)
       start: 2026-01-23T10:00:00
       end: 2026-01-23T12:30:00
     ```
+
+- ✅ **Завершение фазы HELPERS (analysts):**
+  - Manager перед запуском создаёт 5 задач-триггеров:
+    - `run-analyst-ux`, `run-analyst-security`, `run-analyst-ops`, `run-analyst-reliability`, `run-analyst-architecture`
+  - Запускает 5 агентов параллельно через `timeout 10m`
+  - Каждый analyst: claim своей задачи → работа → close
+  - Manager проверяет: все 5 closed → переход в PLAN_REVIEW
+  - **Timeout handling:**
+    - `timeout` убивает зависший процесс
+    - Задача-триггер остаётся open (analyst не успел close)
+    - Manager в следующем цикле видит: "4 closed, 1 open" → перезапускает только зависшего
+    - Retry counter в notes задачи-триггера
+    - После 3 retry → эскалация к Architect
+
+- ✅ **Фаза PLAN_REVIEW:**
+  - Analysts создают задачи БЕЗ dependencies (только `--label=added-by:analyst-*`)
+  - Architect в PLAN_REVIEW расставляет deps для новых задач
+  - Manager создаёт задачу-триггер `run-plan-review`
+  - Architect:
+    1. Claim `run-plan-review`
+    2. Находит задачи: `bd list --label=added-by:analyst-*`
+    3. Убирает дубликаты: `bd close <id> --reason="Дубликат claudev-xxx"`
+    4. Разрешает противоречия: `bd close <id> --reason="Противоречит Security: ..."`
+    5. Close `run-plan-review`
+  - Manager видит closed → переход в IMPLEMENTATION
+
+- ✅ **Коммиты Executor:**
+  - Один коммит в конце работы (перед close задачи)
+  - Задачи короткие (1-5 мин), потеря при падении = перезапуск
+  - Retry 3x покрывает случайные падения
+  - Не усложняем промежуточными коммитами
+
+- ✅ **Rebase перед push (Executor):**
+  - Перед push Executor делает:
+    ```bash
+    git fetch origin main
+    git rebase origin/main
+    git push --force-with-lease -u origin task/beads-xxx
+    ```
+  - `--force-with-lease` — безопасно перезаписывает личную ветку при retry
+  - Простой конфликт (разные файлы) — решает сам
+  - Сложный конфликт (семантический) — эскалация к Architect
+  - Senior Executor получает уже актуальные ветки
+
+- ✅ **Идемпотентность агентов (git/gh ошибки):**
+  - **Общее правило для ВСЕХ агентов:**
+    - При ошибке git/gh команды: логируем, НЕ меняем статус задачи, завершаем работу
+    - Manager перезапустит в следующем цикле
+    - Агент должен быть идемпотентным — повторный запуск даёт тот же результат
+  - **Executor при старте (идемпотентность):**
+    ```bash
+    git fetch origin
+    git branch -D task/beads-xxx 2>/dev/null  # удаляем локальную если есть
+    git checkout -b task/beads-xxx origin/main
+    ```
+  - **Потеря при падении:** максимум 1-5 минут работы (задачи короткие) — приемлемо
+
+- ✅ **Фаза FINAL_REVIEW:**
+  - Architect проверяет целостность результата перед релизом
+  - Не дублирует Senior Executor (тот проверяет каждый PR отдельно)
+  - **Что проверяет:**
+    - Все features из SPEC.md реализованы?
+    - Архитектура соответствует изначальному плану?
+    - Нет пропущенных edge cases?
+  - **Если всё ок:** подтверждает готовность → переход в DONE
+  - **Если проблемы:** создаёт задачи на доработку → обратно в IMPLEMENTATION
 
 **Отложено на следующие итерации:**
 - [ ] OS Notifications (macOS/Linux)
