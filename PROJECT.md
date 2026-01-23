@@ -323,6 +323,67 @@ CI/CD GitHub (опционально)
   - Executor берёт первую из списка
   - Manager НЕ назначает задачи — избыточно
 
+- ✅ **Атомарный claim задачи:**
+  - Executor использует `bd update <id> --claim`
+  - Beads гарантирует атомарность (fails if already claimed)
+  - Если занято — Executor берёт следующую задачу
+
+- ✅ **Лимит эскалаций исчерпан:**
+  - После 2 эскалаций → задача получает label `blocked:escalation-limit`
+  - В `notes` задачи — полная история: что пробовали, почему не получилось
+  - Зависимое дерево автоматически блокируется (через deps)
+  - Система продолжает работать по независимым задачам
+  - В финальном отчёте — секция "Blocked tasks" с объяснениями
+
+- ✅ **Circular dependencies:**
+  - Architect после создания задач запускает `bd dep cycles`
+  - Если есть циклы — исправляет сам
+  - Manager перепроверяет перед переходом в IMPLEMENTATION (safety net)
+
+- ✅ **Senior Executor — последовательный by design:**
+  - Quality gate перед main — параллелить нельзя (race conditions, конфликты)
+  - Очередь PR = система работает быстрее чем можем безопасно мержить
+  - Bottleneck здесь — фича, не баг
+
+- ✅ **SPEC.md validation:**
+  - Tech Writer перед передачей Architect проверяет:
+    - Файл не пустой
+    - Есть обязательные секции (Goal, MVP scope, etc.)
+  - Если битый/неполный — переспрашивает user
+
+- ✅ **Beads daemon down:**
+  - Система падает, пишет user
+  - Не пытаемся работать без sync — это путь к потере данных
+
+- ✅ **Merge conflicts (промпт Senior Executor):**
+  - Мержить по приоритету задач (P0 первым)
+  - Pull перед каждым merge (свежий main)
+  - Простой конфликт (разные файлы/места) — решает сам
+  - Семантический конфликт (один кусок кода) — откладывает merge, создаёт задачу для Architect
+
+- ✅ **Подписка и статистика:**
+  - Используем Claude Code Max 20x
+  - Таймаутов достаточно для защиты от зависаний
+  - После итерации генерируется `stats/iteration-N.yaml`:
+    ```yaml
+    tokens:
+      total: 125000
+      by_role:
+        manager: 5000
+        tech_writer: 15000
+        architect: 25000
+        analysts: 30000
+        executors: 40000
+        senior_executor: 10000
+    tasks:
+      total: 24
+      completed: 22
+      blocked: 2
+    time:
+      start: 2026-01-23T10:00:00
+      end: 2026-01-23T12:30:00
+    ```
+
 **Отложено на следующие итерации:**
 - [ ] OS Notifications (macOS/Linux)
 - [ ] Webhook уведомления (Telegram, Slack)
