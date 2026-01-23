@@ -571,6 +571,48 @@ CI/CD GitHub (опционально)
   - **Если всё ок:** подтверждает готовность → переход в DONE
   - **Если проблемы:** создаёт задачи на доработку → обратно в IMPLEMENTATION
 
+- ✅ **Запуск агентов (формат команды):**
+  ```bash
+  # Статичный промпт + динамический контекст
+  timeout 10m claude --model sonnet --print << EOF
+  $(cat .claude/agents/manager.md)
+
+  ---
+  PROJECT_ROOT: $(pwd)
+  CURRENT_PHASE: $(./scripts/detect-phase.sh)
+  EOF
+  ```
+  - Промпт агента — файл (версионируется, редактируется)
+  - Контекст — добавляется в конце через heredoc
+  - `--print` — результат в stdout для логирования
+  - Для Executor: добавляется `TASK_ID` и `TASK: $(bd show $TASK_ID --format=yaml)`
+
+- ✅ **Модель для Executor:**
+  - Architect назначает через label: `model:haiku`, `model:sonnet`, `model:opus`
+  - run-executors.sh парсит: `bd show $TASK_ID --format=json | jq ...`
+  - Если label нет → default `sonnet`
+
+- ✅ **Интерактивность vs цикл orchestrator:**
+  - **INIT фаза** (Tech Writer) — интерактивный режим, без timeout, stdin/stdout напрямую
+  - **Остальные фазы** — автономный режим, с timeout, параллельные агенты
+  - Orchestrator умеет работать в обоих режимах (switch по фазе)
+  - User silence 30min — внутри Tech Writer (сам следит, завершается с draft)
+
+- ✅ **install.sh (cold start, recovery):**
+  - Git нет → `git init` автоматически
+  - Remote нет → спрашивает: добавить URL или работать локально
+  - Beads CLI нет → ошибка с инструкцией (не можем установить за пользователя)
+  - Beads не инициализирован → `bd init` автоматически
+  - Атомарность: собираем во temp dir, потом move
+  - Идемпотентность: повторный запуск безопасен
+
+- ✅ **Graceful shutdown:**
+  - `trap cleanup SIGINT SIGTERM` в orchestrator
+  - cleanup: SIGTERM детям → ждём 10s → SIGKILL если завис → rm lock
+  - Задачи `in_progress` остаются — это ОК
+  - При старте orchestrator сбрасывает все `in_progress` → `open` с notes "Reset: orchestrator restart"
+  - Идемпотентность агентов покрывает повторный запуск
+
 **Отложено на следующие итерации:**
 - [ ] OS Notifications (macOS/Linux)
 - [ ] Webhook уведомления (Telegram, Slack)
