@@ -36,8 +36,13 @@ claudev/
 
 ## Как система интегрируется в проект
 
+**One-liner установка:**
 ```bash
-# В целевом проекте:
+curl -fsSL https://raw.githubusercontent.com/Puremag1c/claudev/main/invite.sh | bash
+```
+
+**Или вручную:**
+```bash
 git clone git@github.com:user/claudev.git .claudev
 .claudev/install.sh
 
