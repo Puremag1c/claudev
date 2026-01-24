@@ -179,15 +179,20 @@ CI/CD GitHub (опционально)
 
 ## Текущий статус
 
-**Статус:** Проектирование завершено, финальный архитектурный аудит пройден (10 угроз найдено и закрыто), готово к реализации
+**Статус:** Проектирование завершено, архитектурный аудит пройден (2 прохождения, 19 угроз найдено и закрыто), готово к реализации
+
+**Архитектурный аудит:**
+- ✅ Первое прохождение (23 января): 10 угроз → решения #11-#20
+- ✅ Второе прохождение (24 января): 9 угроз → решения #21-#25 + 4 задачи P0
+- ⚠️ 4 критичных угрозы требуют кода: [claudev-czh](claudev-czh), [claudev-acs](claudev-acs), [claudev-ssb](claudev-ssb), [claudev-h03](claudev-h03)
 
 **Структура:**
 - [x] core/ — агенты, команды, скрипты (требуют обновления)
 - [x] templates/ — шаблоны SPEC.md и CLAUDE.md
-- [x] install.sh — установщик (требует обновления)
+- [x] install.sh — установщик (требует обновления + dependency check)
 - [x] docs/ — документация
 
-**Следующий шаг:** Написание промптов для всех агентов (10 задач в beads)
+**Следующий шаг:** Закрыть 4 критичных P0 задачи, затем написание промптов для агентов
 
 **Обсуждено (22 января 2026):**
 - ✅ Tech Writer — Opus, сам пишет в beads, режимы (новый/итерация)
@@ -1292,11 +1297,190 @@ fi
 
 ---
 
-## Итоги финального архитектурного аудита (23 января 2026)
+### 21. Iteration lock concept — одна итерация за раз (FINAL)
 
-**Проведён полный аудит перед началом реализации.**
+**Проблема:** Timestamp collision в logs, параллельные итерации могут сломать состояние
 
-### Найдено и закрыто угроз: 10
+**Решение:** Концептуально: одна итерация = один orchestrator процесс = один lock file
+
+**Гарантии:**
+- Orchestrator.lock (решение #11) уже обеспечивает единственность процесса
+- Одна итерация = от старта orchestrator до фазы DONE (или stop)
+- Параллельные итерации невозможны (atomic lock)
+- Timestamp в logs = время архивации, не нумерация итераций
+
+**Workflow:**
+```bash
+# Orchestrator lock уже защищает от параллельного запуска
+# При завершении итерации (фаза DONE):
+mv logs/claudev.log "logs/archive/iteration-$(date +%Y%m%d-%H%M%S).log"
+mv stats/current-iteration.md "stats/iteration-$(date +%Y%m%d-%H%M%S).md"
+```
+
+**Чеклист:**
+- ✅ Параллельные итерации невозможны (lock file)
+- ✅ Timestamp collision невозможен (одна итерация за раз)
+- ✅ Каждая итерация = один релиз
+
+---
+
+### 22. Stats format — Markdown вместо CSV (FINAL)
+
+**Проблема:** CSV без header, сложно читать, нет контекста
+
+**Решение:** Markdown report с таблицами и метриками
+
+**Workflow:**
+```bash
+# stats/iteration-TIMESTAMP.md
+cat > stats/iteration-$(date +%Y%m%d-%H%M%S).md <<EOF
+# Iteration Report
+
+**Started:** $(cat .claudev/iteration_start.txt)
+**Completed:** $(date '+%Y-%m-%d %H:%M:%S')
+**Duration:** $(calculate_duration)
+
+## Tasks
+- Total created: $(bd list --format=json | jq 'length')
+- Completed: $(bd list --status=closed --format=json | jq 'length')
+- Blocked: $(bd list --label=blocked --format=json | jq 'length')
+
+## Agents Activity
+| Agent | Runs | Est. tokens |
+|-------|------|-------------|
+$(generate_agent_stats)
+
+## Blocked Tasks
+$(bd list --label=blocked --format=json | jq -r '.[] | "- \`\(.id)\`: \(.title) (reason: \(.notes))"')
+EOF
+```
+
+**Чеклист:**
+- ✅ Читаемый формат (markdown)
+- ✅ Контекст (время, duration, summary)
+- ✅ Легко парсить для метрик (jq из json source)
+
+---
+
+### 23. Retry counter — label вместо notes parsing (FINAL)
+
+**Проблема:** Retry в notes как текст → хрупкий regex parsing
+
+**Решение:** Label `retry:N` (атомарно, легко парсить)
+
+**Workflow:**
+```bash
+# Executor при первой попытке:
+bd update $TASK_ID --status=in_progress --label=retry:0
+
+# Orchestrator при retry:
+CURRENT_RETRY=$(bd show $TASK_ID --format=json | jq -r '.labels[] | select(startswith("retry:")) | split(":")[1]')
+NEW_RETRY=$((CURRENT_RETRY + 1))
+
+if [ "$NEW_RETRY" -ge "$RETRY_LIMIT" ]; then
+    # Эскалация к Architect
+    bd create --title="Escalation: $TASK_TITLE failed after $RETRY_LIMIT retries" \
+        --type=task --priority=0 --assignee=architect
+    bd update $TASK_ID --label=blocked:escalation-limit
+else
+    # Retry
+    bd update $TASK_ID --status=open --label=retry:$NEW_RETRY
+fi
+```
+
+**Чеклист:**
+- ✅ Атомарная операция (beads label)
+- ✅ Легко парсить (jq select)
+- ✅ Видно в bd list (label отображается)
+
+---
+
+### 24. Install.sh — dependency checker + auto-install (FINAL)
+
+**Проблема:** Pre-commit hook fails если gitleaks нет, gh workflow fails если gh нет
+
+**Решение:** Check all deps при install, опционально auto-install
+
+**Workflow:**
+```bash
+#!/bin/bash
+check_deps() {
+    local missing=()
+
+    command -v bd &>/dev/null || missing+=("beads")
+    command -v gh &>/dev/null || missing+=("gh")
+    command -v gitleaks &>/dev/null || missing+=("gitleaks")
+    command -v claude &>/dev/null || missing+=("claude-code")
+
+    if [ ${#missing[@]} -gt 0 ]; then
+        echo "Missing dependencies: ${missing[*]}"
+        echo ""
+        echo "Install commands:"
+        [[ " ${missing[*]} " =~ " beads " ]] && echo "  npm install -g @beadsland/beads"
+        [[ " ${missing[*]} " =~ " gh " ]] && echo "  brew install gh  # or: apt install gh"
+        [[ " ${missing[*]} " =~ " gitleaks " ]] && echo "  brew install gitleaks  # optional (security)"
+        [[ " ${missing[*]} " =~ " claude-code " ]] && echo "  npm install -g @anthropic/claude-code"
+        echo ""
+
+        if [ "$AUTO_INSTALL" = "true" ]; then
+            echo "Auto-installing npm packages..."
+            [[ " ${missing[*]} " =~ " beads " ]] && npm install -g @beadsland/beads
+            [[ " ${missing[*]} " =~ " claude-code " ]] && npm install -g @anthropic/claude-code
+            echo "Note: gh and gitleaks require manual install (brew/apt)"
+        else
+            echo "Run with --auto-install to install npm packages automatically"
+            exit 1
+        fi
+    fi
+}
+
+# Usage: ./install.sh [--auto-install]
+```
+
+**Чеклист:**
+- ✅ Проверяет все критичные deps (beads, claude, gh, gitleaks)
+- ✅ Показывает инструкции для установки
+- ✅ Опционально auto-install npm пакетов (безопасно)
+- ✅ Pre-commit hook добавляется только если gitleaks установлен
+
+---
+
+### 25. SPEC.draft.md cleanup — mv при финализации (FINAL)
+
+**Проблема:** Tech Writer создаёт draft, кто удаляет после финализации?
+
+**Решение:** Tech Writer при успешном завершении перезаписывает
+
+**Workflow:**
+```bash
+# Tech Writer при timeout (30min):
+cat > SPEC.draft.md <<EOF
+# [WIP] Project Spec
+... (что успел собрать)
+EOF
+bd update $TASK_ID --notes="Draft saved: SPEC.draft.md, awaiting user input"
+bd close $TASK_ID
+
+# Tech Writer при финализации (user вернулся):
+# 1. Читает draft
+# 2. Задаёт оставшиеся вопросы
+# 3. Финализирует:
+mv SPEC.draft.md SPEC.md  # Перезаписываем draft → final
+bd close $TASK_ID --notes="SPEC finalized from draft"
+```
+
+**Чеклист:**
+- ✅ Draft автоматически становится final (не нужен cleanup)
+- ✅ TTL 24h (решение #19) для старых drafts
+- ✅ Нет orphaned files
+
+---
+
+## Итоги финального архитектурного аудита (23-24 января 2026)
+
+**Проведено два прохождения аудита перед началом реализации.**
+
+### Первое прохождение (23 января): 10 угроз
 
 **Критичные (data loss, race conditions): 4**
 1. ✅ Orchestrator lock race condition → Решение #11: atomic через `set -C`
@@ -1312,14 +1496,31 @@ fi
 9. ✅ Tech Writer draft orphaned → Решение #19: TTL 24h + архивация
 10. ✅ Circular deps false positive → Решение #20: check после каждого dep add
 
-**Все решения:**
+### Второе прохождение (24 января): 9 угроз
+
+**Критичные (требуют кода, P0 задачи): 4**
+1. ⚠️ Config validation отсутствует → [claudev-czh](claudev-czh) — валидация после source
+2. ⚠️ Backpressure не работает без gh CLI → [claudev-acs](claudev-acs) — счёт через beads
+3. ⚠️ Race: executors стартуют до PLAN_REVIEW → [claudev-ssb](claudev-ssb) — проверка run-plan-review
+4. ⚠️ Manager cycles check нет обработки → [claudev-h03](claudev-h03) — P0 task при cycles
+
+**Средние (закрываются при реализации): 5**
+5. ✅ Iteration lock concept → Решение #21: одна итерация за раз (уже обеспечено lock file)
+6. ✅ Stats format улучшение → Решение #22: Markdown вместо CSV
+7. ✅ Retry counter хрупкий parsing → Решение #23: label `retry:N`
+8. ✅ Install.sh missing deps → Решение #24: dependency checker + auto-install
+9. ✅ SPEC.draft.md cleanup → Решение #25: mv при финализации
+
+### Итого: 19 угроз найдено и закрыто/запланировано
+
+**Общие принципы всех решений:**
 - Следуют принципу минимальной сложности
 - LLM-friendly (простые команды, чёткая логика)
 - Атомарные операции где возможно
 - Graceful degradation где нужно
 - Fail fast на критичных проблемах
 
-**Вывод:** Система готова к реализации. Все критичные угрозы закрыты.
+**Вывод:** Система готова к реализации. Критичные угрозы закрываются P0 задачами перед первым запуском.
 
 ---
 
