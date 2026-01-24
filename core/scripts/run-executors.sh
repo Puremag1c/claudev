@@ -1,0 +1,155 @@
+#!/bin/bash
+# core/scripts/run-executors.sh
+# Запускает Executor агентов параллельно с backpressure контролем.
+#
+# Backpressure: количество активных executors ограничено через MAX_PARALLEL_EXECUTORS.
+# Считаем через beads (in_progress + label=executor), не через gh pr list.
+#
+# Использование: ./scripts/run-executors.sh
+
+set -euo pipefail
+
+PROJECT_DIR=$(pwd)
+LOGS_DIR="$PROJECT_DIR/logs"
+CONFIG_FILE="$PROJECT_DIR/.claudev/config.sh"
+
+# Load config
+if [ -f "$CONFIG_FILE" ]; then
+    # shellcheck source=/dev/null
+    source "$CONFIG_FILE"
+fi
+
+MAX_PARALLEL="${MAX_PARALLEL_EXECUTORS:-3}"
+TASK_TIMEOUT="${TASK_TIMEOUT:-10m}"
+
+mkdir -p "$LOGS_DIR"
+
+log() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [RUN-EXECUTORS] $1: $2" | tee -a "$LOGS_DIR/claudev.log"
+}
+
+# === Backpressure check ===
+# Считаем active executors через beads (работает всегда, не зависит от gh)
+
+count_active_executors() {
+    # Считаем задачи в in_progress с label executor или model:*
+    bd list --status=in_progress --format=json 2>/dev/null | \
+        jq '[.[] | select(.labels[]? | test("^(executor|model:)"))] | length' 2>/dev/null || echo "0"
+}
+
+# === Get ready tasks for executors ===
+
+get_ready_tasks() {
+    # Получаем задачи готовые к работе (не blocked, не in_progress)
+    # Фильтруем только те что для executors (имеют model: label или тип task без специальных assignee)
+    bd ready --format=json 2>/dev/null | \
+        jq -r '.[] | select(.type == "task") | select(.labels[]? | test("^model:") or . == "implementation") | .id' 2>/dev/null | \
+        head -n "$MAX_PARALLEL"
+}
+
+# === Run single executor ===
+
+run_executor() {
+    local task_id=$1
+
+    # Try to claim the task
+    if ! bd update "$task_id" --status=in_progress --label=executor 2>/dev/null; then
+        log "INFO" "Task $task_id already claimed, skipping"
+        return 0
+    fi
+
+    # Get task details
+    local task_json
+    task_json=$(bd show "$task_id" --format=json 2>/dev/null || echo "{}")
+
+    local task_title
+    task_title=$(echo "$task_json" | jq -r '.title // "Unknown"')
+
+    # Get model from label (default: sonnet)
+    local model
+    model=$(echo "$task_json" | jq -r '.labels[]? | select(startswith("model:")) | split(":")[1]' 2>/dev/null | head -1)
+    model="${model:-sonnet}"
+
+    log "INFO" "Starting executor for $task_id ($model): $task_title"
+
+    # Run executor agent with timeout
+    local output_file="$LOGS_DIR/executor-$task_id.log"
+
+    timeout "$TASK_TIMEOUT" claude --model "$model" --print <<EOF > "$output_file" 2>&1 || {
+        local exit_code=$?
+        if [ $exit_code -eq 124 ]; then
+            log "WARN" "Executor timeout for $task_id"
+            # Increment retry counter
+            local current_retry
+            current_retry=$(echo "$task_json" | jq -r '.labels[]? | select(startswith("retry:")) | split(":")[1]' 2>/dev/null | head -1)
+            current_retry="${current_retry:-0}"
+            local new_retry=$((current_retry + 1))
+
+            bd update "$task_id" --status=open --label="retry:$new_retry" --notes="Timeout at $(date '+%Y-%m-%d %H:%M:%S')" 2>/dev/null || true
+        else
+            log "ERROR" "Executor failed for $task_id (exit: $exit_code)"
+            bd update "$task_id" --status=open --notes="Executor failed (exit: $exit_code)" 2>/dev/null || true
+        fi
+        return 0
+    }
+$(cat .claude/agents/executor.md 2>/dev/null || echo "# Executor agent not found")
+
+---
+TASK_ID: $task_id
+TASK: $task_json
+PROJECT_ROOT: $PROJECT_DIR
+EOF
+
+    log "INFO" "Executor completed for $task_id"
+}
+
+# === Main ===
+
+main() {
+    log "INFO" "=========================================="
+    log "INFO" "RUN-EXECUTORS STARTED"
+    log "INFO" "Max parallel: $MAX_PARALLEL"
+    log "INFO" "=========================================="
+
+    # Check backpressure
+    local active
+    active=$(count_active_executors)
+
+    if [ "$active" -ge "$MAX_PARALLEL" ]; then
+        log "INFO" "Executor queue full ($active/$MAX_PARALLEL), waiting for slots"
+        exit 0
+    fi
+
+    local available_slots=$((MAX_PARALLEL - active))
+    log "INFO" "Available slots: $available_slots (active: $active)"
+
+    # Get ready tasks
+    local tasks
+    tasks=$(get_ready_tasks)
+
+    if [ -z "$tasks" ]; then
+        log "INFO" "No ready tasks for executors"
+        exit 0
+    fi
+
+    # Start executors in parallel (up to available slots)
+    local started=0
+    for task_id in $tasks; do
+        if [ $started -ge $available_slots ]; then
+            break
+        fi
+
+        run_executor "$task_id" &
+        ((started++))
+    done
+
+    log "INFO" "Started $started executors"
+
+    # Wait for all background jobs
+    wait
+
+    log "INFO" "All executors finished"
+    bd sync 2>/dev/null || true
+}
+
+main "$@"

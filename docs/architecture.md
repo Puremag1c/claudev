@@ -1,393 +1,205 @@
-# AI Development System
+# Claudev Architecture
 
-Автономная мульти-агентная система разработки с памятью в Beads.
+Многоагентная AI-система автоматической разработки на базе Claude Code.
 
-## Ключевые особенности
-
-- **Менеджер с памятью** — состояние хранится в Beads, не теряется между вызовами
-- **Автономная работа** — orchestrator пинает менеджера в цикле до завершения
-- **Параллельные агенты** — помощники и кодеры работают одновременно
-- **Атомарный захват задач** — кодеры не дублируют работу
-
-## Быстрый старт
-
-```bash
-# 1. Установи зависимости
-npm install -g @anthropic-ai/claude-code
-brew install jq
-# + beads
-
-# 2. Скопируй в проект
-cp -r ai-dev-system/{.claude,scripts,CLAUDE.md} my-project/
-cd my-project
-bd init --quiet
-chmod +x scripts/*.sh
-
-# 3. Опиши ТЗ
-vim SPEC.md
-
-# 4. Инициализируй и запусти
-./scripts/init-manager.sh
-./scripts/orchestrator.sh
-```
-
-## Как это работает
+## Обзор
 
 ```
-┌─────────────────────────────────────────┐
-│         orchestrator.sh                  │
-│                                          │
-│   while true:                            │
-│       claude manager "Продолжи работу"   │
-│       if PROJECT_COMPLETE: exit          │
-│       sleep 10                           │
-│                                          │
-└─────────────────┬────────────────────────┘
-                  │
-                  ▼
-┌─────────────────────────────────────────┐
-│         Manager (Claude)                 │
-│                                          │
-│   1. bd show MANAGER → читает состояние  │
-│   2. Анализирует задачи                  │
-│   3. Принимает решение                   │
-│   4. Выполняет действие                  │
-│   5. bd update MANAGER → сохраняет       │
-│                                          │
-└─────────────────┬────────────────────────┘
-                  │
-      ┌───────────┼───────────┐
-      ▼           ▼           ▼
-  Architect    Helpers     Coders
-   (Opus)    (Sonnet×4)   (dynamic)
+orchestrator.sh (bash loop с lock file)
+    │
+    └─► Manager (Sonnet, stateless)
+            │
+            ├─► detect-phase.sh → определяет текущую фазу
+            │
+            └─► Запускает агентов по фазе:
+                ├─► Tech Writer (Opus) — собирает требования
+                ├─► Architect (Opus) — план, задачи, dependencies
+                ├─► Analysts (Sonnet × 5) — аудит плана
+                ├─► Executors (по задаче) — реализация в git ветках
+                └─► Senior Executor (Opus) — ревью, merge, релиз
 ```
 
-## Состояние менеджера в Beads
+## Фазы проекта
 
-```json
-{
-  "phase": "IMPLEMENTATION",
-  "cycle": 15,
-  "helper_cycles": 2,
-  "last_action": "run-coders",
-  "last_decision": "8 задач open, запустил 2 кодеров",
-  "blockers_seen": ["bd-f3a1"],
-  "decisions": [
-    {"cycle": 1, "action": "run-architect", "reason": "INIT"},
-    {"cycle": 5, "action": "run-helpers", "reason": "План создан"},
-    {"cycle": 10, "action": "run-coders", "reason": "План готов"},
-    ...
-  ]
-}
+```
+INIT → PLANNING → HELPERS → PLAN_REVIEW → IMPLEMENTATION → FINAL_REVIEW → DONE
 ```
 
-## Интеграция с существующим проектом
+| Фаза | Условие перехода | Агент | Действие |
+|------|-----------------|-------|----------|
+| INIT | Нет SPEC.md | Tech Writer | Собирает требования от user |
+| PLANNING | Есть SPEC.md | Architect | Создаёт задачи в beads |
+| HELPERS | milestone:planning-done | Analysts ×5 | Параллельный аудит плана |
+| PLAN_REVIEW | milestone:analysts-done | Architect | Ревьюит добавления Analysts |
+| IMPLEMENTATION | milestone:plan-reviewed | Executors | Реализуют задачи |
+| FINAL_REVIEW | Все задачи closed | Architect | Проверяет целостность |
+| DONE | milestone:project-done | — | Проект завершён |
 
-```bash
-# Если задачи уже в Beads:
+## Агенты
 
-# 1. Добавь модели
-./scripts/add-models.sh sonnet
+### Manager (Sonnet)
+- **Роль:** Stateless координатор
+- **Задача:** Определить фазу, запустить нужного агента, выйти
+- **Не делает:** Не создаёт задачи, не пишет код
 
-# 2. Пропусти планирование
-./scripts/set-milestones.sh planning-done helpers-done plan-reviewed
+### Tech Writer (Opus)
+- **Роль:** Сбор требований
+- **Задача:** Через диалог с user создать SPEC.md
+- **Особенности:** Интерактивный режим, без timeout
 
-# 3. Инициализируй менеджера в нужной фазе
-./scripts/init-manager.sh --phase IMPLEMENTATION --helper-cycles 2
+### Architect (Opus)
+- **Роль:** Главный технический эксперт
+- **Задачи:**
+  - Создание плана из SPEC.md
+  - Разбивка на мелкие задачи (1-5 мин)
+  - Расстановка dependencies
+  - Назначение модели каждой задаче
+  - Ревью добавлений от Analysts
+  - Разрешение конфликтов и эскалаций
 
-# 4. Запусти
-./scripts/orchestrator.sh
-```
+### Analysts (Sonnet × 5)
+- **Роль:** Параллельный аудит плана
+- **Виды:**
+  - UX — пользовательские сценарии, UI состояния
+  - Security — OWASP, auth, secrets
+  - OPS — тесты, CI/CD, мониторинг
+  - Reliability — edge cases, failure modes
+  - Architecture — структура кода, зависимости
+- **Правило:** Только добавляют задачи, не удаляют
+
+### Executor (по задаче)
+- **Роль:** Реализация одной задачи
+- **Модель:** Из label задачи (model:haiku/sonnet/opus)
+- **Workflow:**
+  1. Claim задачу через `bd update --claim`
+  2. Работает в ветке `task/beads-{id}`
+  3. Rebase на main
+  4. Push и пометить `needs-review`
+
+### Senior Executor (Opus)
+- **Роль:** Quality gate перед main
+- **Задачи:**
+  - Code review
+  - Проверка на secrets
+  - Запуск тестов
+  - Merge через PR (или local merge)
+  - Релиз
 
 ## Скрипты
 
-| Скрипт | Описание |
-|--------|----------|
-| `orchestrator.sh` | Главный цикл — пинает менеджера |
-| `init-manager.sh` | Инициализация состояния менеджера |
-| `run-helpers.sh` | Параллельный запуск помощников |
-| `run-coders.sh` | Параллельный запуск кодеров |
-| `claim-task.sh` | Атомарный захват задачи |
-| `detect-phase.sh` | Определение фазы (legacy) |
-| `add-models.sh` | Добавить model: labels |
-| `set-milestones.sh` | Проставить milestones |
-| `notify.sh` | macOS уведомления |
+| Скрипт | Назначение |
+|--------|------------|
+| `orchestrator.sh` | Главный цикл с lock file |
+| `detect-phase.sh` | Определение текущей фазы |
+| `run-analysts.sh` | Параллельный запуск 5 Analysts |
+| `run-executors.sh` | Параллельный запуск Executors с backpressure |
+| `log.sh` | Хелпер для логирования |
+| `notify.sh` | Уведомления (macOS) |
 
-## Переменные окружения
+## Конфигурация
 
-```bash
-MAX_CYCLES=100      # Лимит итераций orchestrator
-PAUSE_SECONDS=10    # Пауза между вызовами менеджера
-```
-
-## Отладка
+`.claudev/config.sh`:
 
 ```bash
-# Логи orchestrator
-tail -f logs/orchestrator.log
-
-# Логи конкретного цикла менеджера
-cat logs/manager-15.log
-
-# Состояние менеджера
-bd list --json | jq '.[] | select(.labels | index("role:manager")) | .description | fromjson'
-
-# Сбросить и начать заново
-./scripts/init-manager.sh --reset
+MAX_PARALLEL_EXECUTORS=3    # Лимит параллельных Executors
+RETRY_LIMIT=3               # Retry до эскалации к Architect
+TASK_TIMEOUT="10m"          # Таймаут на задачу
+USER_INPUT_TIMEOUT="30m"    # Таймаут ожидания user
+CI_ENABLED=false            # GitHub CI интеграция
+CD_ENABLED=false            # Автоматический релиз
 ```
 
----
+## Beads интеграция
 
-## Исследование: Multi-Agent Patterns (январь 2026)
+### Статусы задач
 
-### Anthropic Research System
+- `open` — задача создана, ждёт исполнителя
+- `in_progress` — Executor работает
+- `in_progress` + `needs-review` — ждёт Senior Executor
+- `closed` — завершено
 
-**Источник:** [How we built our multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system)
+### Labels
 
-**Архитектура:**
-- Orchestrator-worker pattern
-- Lead agent (Opus) координирует subagents (Sonnet)
-- Subagents работают **синхронно** — lead ждёт их завершения
-- 90.2% улучшение vs single-agent (но 15x больше токенов)
+- `model:haiku/sonnet/opus` — какая модель выполняет
+- `added-by:analyst-*` — кто добавил задачу
+- `milestone:*` — маркер завершения фазы
+- `retry:N` — счётчик повторных попыток
+- `blocked:*` — причина блокировки
 
-**State persistence:**
-- Сохраняют план во "внешнюю память" перед лимитами контекста
-- Resume "from where the agent was when the errors occurred"
-- Retry logic + checkpoints для восстановления
+### Dependencies
 
-**Ключевое:** каждый subagent получает objective, output format, guidance on tools, clear task boundaries.
-
-### Claude Code Subagents
-
-**Источник:** [Create custom subagents](https://code.claude.com/docs/en/sub-agents)
-
-**Как работают:**
-- Каждый subagent = **изолированный контекст** (не наследует историю родителя)
-- Можно resume по agent ID — transcripts хранятся в файлах
-- Background subagents возможны (не блокируют main conversation)
-- **Ограничение:** subagents не могут создавать subagents (нет вложенности)
-
-**Создание:**
-```yaml
----
-name: tech-writer
-description: Собирает требования от заказчика
-tools: Read, Write, Bash
-model: opus
-permissionMode: default
----
-
-Ты Tech Writer. Твоя задача — собрать требования...
+```bash
+bd dep add <task-id> <depends-on-id>
+bd dep cycles  # Проверка циклов
 ```
 
-**Storage locations (по приоритету):**
-1. `--agents` CLI flag (session only)
-2. `.claude/agents/` (project)
-3. `~/.claude/agents/` (user-level)
+## Отказоустойчивость
 
-### Выбранная архитектура для Claudev (v2)
+### Lock file
+- Один orchestrator за раз
+- Atomic через `set -C` (noclobber)
+- Автоочистка stale lock
 
-**Принцип:** Manager только координирует, каждый агент сам пишет в beads.
+### Retry logic
+- 3 попытки на задачу
+- Счётчик в label `retry:N`
+- После лимита — эскалация к Architect
 
-```
-orchestrator.sh (watchdog, перезапускает Manager)
-    │
-    └─→ Manager (определяет что делать)
-            │
-            ├─→ bd list → анализирует состояние
-            │
-            ├─→ Логика выбора действия:
-            │     • пусто → Tech Writer
-            │     • spec_ready, нет плана → Architect
-            │     • есть clarification → Tech Writer (с вопросом)
-            │     • план готов, нет review → Analysts
-            │     • review done → Executors
-            │     • всё closed, CI green → DONE
-            │
-            └─→ Запускает subagent
-                    │
-                    └─→ Subagent сам пишет в beads (не ждёт Manager)
-```
+### Graceful shutdown
+- `trap SIGINT SIGTERM`
+- Reset stale tasks (>5min in_progress)
+- Cleanup lock file
 
-**Ключевые принципы:**
+### Config validation
+- Проверка при каждой итерации
+- Integers, booleans, timeouts
+- Fail fast при ошибках
 
-1. **Каждый агент сам пишет состояние**
-   - Tech Writer: создаёт issue "spec-draft", обновляет после каждого ответа user'а
-   - Architect: создаёт задачи сразу в beads
-   - Executor: ставит in_progress при старте, закрывает при завершении
-
-2. **Таймауты на user input**
-   - 30 минут на ответ от user'а
-   - При таймауте → сохраняет draft, завершается
-   - Manager при следующем запуске → resume
-
-3. **Обратная связь через clarification issues**
-   - Architect создаёт issue типа "clarification"
-   - Manager видит → запускает Tech Writer с контекстом
-   - Tech Writer уточняет, обновляет SPEC.md, закрывает issue
-
-4. **Критерий завершения**
-   - Все issues closed
-   - Нет issues типа "bug" или "clarification"
-   - CI/CD прошёл (опционально)
-
-**Почему так:**
-1. **Subagents** — быстрая коммуникация внутри сессии
-2. **Beads** — персистентность, recovery после падений
-3. **Агенты пишут сами** — нет bottleneck на Manager
-4. **Не message queue** — overkill для наших целей
-
-### Модели агентов
-
-| Роль | Модель | Почему |
-|------|--------|--------|
-| Manager | Sonnet | Простая логика if/else, не требует Opus |
-| Tech Writer | Opus | Качество ТЗ критично |
-| Architect | Opus | Принимает архитектурные решения |
-| Остальные | TBD | Обсудим позже |
-
-### Итерации и SPEC.md
-
-Tech Writer работает в двух режимах:
-
-**Новый проект:** создаёт SPEC.md с нуля
-
-**Итерация:** дополняет существующий SPEC.md
-```markdown
-# SPEC.md
-
-## Iteration 1 (MVP)
-- Авторизация email/password
-- Список задач
-
-## Iteration 2
-- Добавить Google OAuth
-- Синхронизация между устройствами
-```
-
-Manager определяет режим: SPEC.md существует + есть closed задачи → итерация.
-
-### Типы issue для взаимодействия с user
-
-| Тип | Кто создаёт | Зачем | Обработка |
-|-----|-------------|-------|-----------|
-| `clarification` | Architect | Уточнить требования | Tech Writer → вопрос → SPEC.md |
-| `decision` | Architect | User выбирает из вариантов | User → выбор → Architect применяет |
-
-### Лимит эскалаций
+## Git workflow
 
 ```
-Задача создана
-    ↓
-Executor stuck → эскалация #1 → Architect переформулирует
-    ↓
-Executor stuck → эскалация #2 → Architect меняет подход
-    ↓
-Executor stuck → эскалация #3 → decision issue к user
+main
+  │
+  ├── task/beads-abc  ← Executor 1
+  ├── task/beads-def  ← Executor 2
+  └── task/beads-ghi  ← Executor 3
 ```
 
-В beads: `escalation_count`, `max_escalations: 2`
+1. Executor создаёт ветку от main
+2. Работает, коммитит
+3. Rebase на main (при конфликте — эскалация)
+4. Push с `--force-with-lease`
+5. Senior Executor мержит через PR
 
-### UX: Четыре статуса
+## Backpressure
 
-**1. В работе** — система работает
-```
-$ ./status
-▶ В РАБОТЕ
+- Лимит = `MAX_PARALLEL_EXECUTORS`
+- Считаем через beads (не gh pr list)
+- Работает без GitHub
 
-Фаза: Реализация
-Задач: 5 из 15 выполнено
-Активно: "Реализация авторизации"
+## Логирование
 
-→ Подождите или прервите: Ctrl+C
-```
+Формат: `YYYY-MM-DD HH:MM:SS [AGENT] EVENT: message`
 
-**2. Ожидает ответа** — система ждёт user
-```
-$ ./status
-⏸ ОЖИДАЕТ ОТВЕТА
-
-Вопрос: "Какой провайдер авторизации: Google, Apple, email?"
-→ Ответьте: ./answer "email"
+```bash
+./scripts/log.sh MANAGER INFO "Starting phase detection"
+./scripts/log.sh EXECUTOR TASK_START "claudev-abc"
+./scripts/log.sh ORCHESTRATOR FATAL "Beads daemon not running"
 ```
 
-**3. Требуется решение** — система предлагает варианты
-```
-$ ./status
-⏸ ТРЕБУЕТСЯ РЕШЕНИЕ
+## Установка
 
-Проблема: "Синхронизация в реальном времени"
-
-Варианты:
-1. Упростить до периодической (каждые 5 мин)
-2. Использовать Firebase/Supabase
-3. Отложить на следующую итерацию
-4. Другое
-
-→ Выберите: ./choose 1
+```bash
+cd your-project
+git clone <claudev-repo> .claudev
+.claudev/install.sh
+./scripts/orchestrator.sh
 ```
 
-**4. Работа завершена** — success
-```
-$ ./status
-✓ ЗАВЕРШЕНО
+## Зависимости
 
-Iteration 1: 15 задач выполнено, CI: passed
-→ Следующая итерация: опишите что доработать
-```
-
-**Принцип:** user выбирает из готовых вариантов, не придумывает сам.
-
-### Отказоустойчивость
-
-**Retry логика:**
-```
-Executor берёт задачу
-    ↓
-Таймаут 10 минут
-    ↓
-Не завершил? → Manager убивает, retry
-    ↓
-3 попытки неудачны? → статус "stuck"
-    ↓
-Manager запускает Architect для эскалации
-```
-
-**Эскалация к Architect (не к user):**
-```
-Executor stuck (3 попытки)
-    ↓
-Architect анализирует причину
-    ↓
-Architect решает:
-    ├─→ Переформулирует задачу
-    ├─→ Разбивает на меньшие
-    ├─→ Меняет подход
-    └─→ Или: проблема в требованиях → decision issue к user
-    ↓
-Если решил → новые задачи, Executor продолжает
-Если не решил → decision issue с вариантами
-```
-
-**Принцип:** User не видит технических деталей. К нему приходят только бизнес-вопросы с готовыми вариантами ответа.
-
-**Beads статусы для отказоустойчивости:**
-```yaml
-# Задача застряла
-status: stuck
-retry_count: 3
-last_error: "timeout after 10 min"
-
-# Ждём решения user
-status: decision_required
-options:
-  - "Упростить до периодической синхронизации"
-  - "Использовать Firebase"
-  - "Отложить"
-```
-
-### Другие фреймворки (для справки)
-
-- [Claude-Flow](https://github.com/ruvnet/claude-flow) — multi-agent swarms, MCP protocol
-- [ccswarm](https://github.com/nwiizo/ccswarm) — Rust, git worktree isolation
-- [Multi-agent patterns in ADK](https://developers.googleblog.com/developers-guide-to-multi-agent-patterns-in-adk/) — Google's patterns
+- **beads** — управление задачами
+- **claude** — Claude Code CLI
+- **gh** — GitHub CLI (опционально)
+- **jq** — JSON processing
+- **gitleaks** — secret detection (опционально)

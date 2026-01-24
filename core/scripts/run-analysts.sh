@@ -1,0 +1,138 @@
+#!/bin/bash
+# core/scripts/run-analysts.sh
+# Запускает 5 Analyst агентов параллельно.
+# Каждый analyst claim своей trigger-задачи и закрывает её по завершении.
+#
+# Analysts: ux, security, ops, reliability, architecture
+#
+# Использование: ./scripts/run-analysts.sh
+
+set -euo pipefail
+
+PROJECT_DIR=$(pwd)
+LOGS_DIR="$PROJECT_DIR/logs"
+CONFIG_FILE="$PROJECT_DIR/.claudev/config.sh"
+
+# Load config
+if [ -f "$CONFIG_FILE" ]; then
+    # shellcheck source=/dev/null
+    source "$CONFIG_FILE"
+fi
+
+TASK_TIMEOUT="${TASK_TIMEOUT:-10m}"
+
+mkdir -p "$LOGS_DIR"
+
+log() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [RUN-ANALYSTS] $1: $2" | tee -a "$LOGS_DIR/claudev.log"
+}
+
+# All analysts
+ANALYSTS=("ux" "security" "ops" "reliability" "architecture")
+
+# Run single analyst
+run_analyst() {
+    local analyst=$1
+    local trigger_task="run-analyst-$analyst"
+    local agent_file=".claude/agents/analyst-$analyst.md"
+
+    log "INFO" "Starting analyst-$analyst"
+
+    # Find trigger task
+    local task_id
+    task_id=$(bd list --format=json 2>/dev/null | jq -r ".[] | select(.title == \"$trigger_task\") | .id" | head -1)
+
+    if [ -z "$task_id" ]; then
+        log "WARN" "No trigger task for analyst-$analyst"
+        return 0
+    fi
+
+    # Claim trigger task
+    if ! bd update "$task_id" --status=in_progress 2>/dev/null; then
+        log "INFO" "Trigger $trigger_task already claimed"
+        return 0
+    fi
+
+    # Check if agent file exists
+    if [ ! -f "$agent_file" ]; then
+        log "WARN" "Agent file not found: $agent_file"
+        bd close "$task_id" --reason="Agent file not found"
+        return 0
+    fi
+
+    # Run analyst with timeout
+    local output_file="$LOGS_DIR/analyst-$analyst.log"
+
+    timeout "$TASK_TIMEOUT" claude --model sonnet --print <<EOF > "$output_file" 2>&1 || {
+        local exit_code=$?
+        if [ $exit_code -eq 124 ]; then
+            log "WARN" "Analyst $analyst timeout"
+            bd update "$task_id" --status=open --notes="Timeout at $(date '+%Y-%m-%d %H:%M:%S')"
+        else
+            log "ERROR" "Analyst $analyst failed (exit: $exit_code)"
+            bd update "$task_id" --status=open --notes="Failed (exit: $exit_code)"
+        fi
+        return 0
+    }
+$(cat "$agent_file" 2>/dev/null)
+
+---
+ANALYST: $analyst
+TRIGGER_TASK: $task_id
+PROJECT_ROOT: $PROJECT_DIR
+EOF
+
+    # Close trigger task
+    bd close "$task_id" --reason="Analyst $analyst completed"
+    log "INFO" "Analyst $analyst completed"
+}
+
+# Main
+main() {
+    log "INFO" "=========================================="
+    log "INFO" "RUN-ANALYSTS STARTED"
+    log "INFO" "Analysts: ${ANALYSTS[*]}"
+    log "INFO" "=========================================="
+
+    # Check that all trigger tasks exist
+    local missing=0
+    for analyst in "${ANALYSTS[@]}"; do
+        if ! bd list --format=json 2>/dev/null | jq -e ".[] | select(.title == \"run-analyst-$analyst\")" > /dev/null 2>&1; then
+            log "WARN" "Trigger task run-analyst-$analyst not found"
+            ((missing++))
+        fi
+    done
+
+    if [ "$missing" -eq "${#ANALYSTS[@]}" ]; then
+        log "ERROR" "No trigger tasks found. Create them first."
+        exit 1
+    fi
+
+    # Run all analysts in parallel
+    for analyst in "${ANALYSTS[@]}"; do
+        run_analyst "$analyst" &
+    done
+
+    # Wait for all
+    wait
+
+    # Check if all done
+    local open_triggers
+    open_triggers=$(bd list --status=open --format=json 2>/dev/null | jq '[.[] | select(.title | startswith("run-analyst-"))] | length' 2>/dev/null || echo "0")
+
+    if [ "$open_triggers" -eq 0 ]; then
+        log "INFO" "All analysts completed"
+        # Set milestone
+        bd create --title="Analysts complete" --type=task --label=milestone:analysts-done 2>/dev/null || true
+        local milestone_id
+        milestone_id=$(bd list --format=json | jq -r '.[] | select(.labels[]? == "milestone:analysts-done") | .id' | head -1)
+        [ -n "$milestone_id" ] && bd close "$milestone_id" 2>/dev/null || true
+    else
+        log "INFO" "Some analysts still open ($open_triggers remaining)"
+    fi
+
+    bd sync 2>/dev/null || true
+    log "INFO" "RUN-ANALYSTS FINISHED"
+}
+
+main "$@"
