@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3] - 2026-01-24
+
+### Added
+- Auto-close features и epics когда все children завершены
+- Новый скрипт `close-completed-parents.sh`
+- Использует встроенную команду beads `bd epic close-eligible`
+
+### Changed
+- orchestrator.sh вызывает auto-close каждый цикл (шаг 7)
+
 ## [0.2] - 2026-01-24
 
 ### Added

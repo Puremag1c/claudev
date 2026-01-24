@@ -230,7 +230,10 @@ EOF
             ./scripts/notify.sh "Critical error" "Check logs/manager-$cycle.log" 2>/dev/null || true
         fi
 
-        # 7. Pause before next iteration
+        # 7. Auto-close completed features and epics
+        ./scripts/close-completed-parents.sh 2>/dev/null || true
+
+        # 8. Pause before next iteration
         log "INFO" "Pause ${ITERATION_DELAY}s..."
         sleep "$ITERATION_DELAY"
     done

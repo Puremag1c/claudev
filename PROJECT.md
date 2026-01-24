@@ -122,6 +122,7 @@ model: opus|sonnet|haiku
 | detect-phase.sh | Определение текущей фазы проекта |
 | run-analysts.sh | Параллельный запуск 5 analysts |
 | run-executors.sh | Параллельный запуск executors (до MAX_PARALLEL) |
+| close-completed-parents.sh | Auto-close features/epics когда все children done |
 | log.sh | Хелпер для логирования в logs/claudev.log |
 
 **Устаревшие (удалить):**
@@ -190,7 +191,7 @@ CI/CD GitHub (опционально)
 
 **Реализовано:**
 - ✅ core/agents/ — 10 промптов агентов (Tech Writer, Manager, Architect, Executor, Senior Executor, 5 Analysts)
-- ✅ core/scripts/ — orchestrator.sh, detect-phase.sh, run-executors.sh, run-analysts.sh, log.sh
+- ✅ core/scripts/ — orchestrator.sh, detect-phase.sh, run-executors.sh, run-analysts.sh, close-completed-parents.sh, log.sh
 - ✅ templates/ — config.template.sh, SPEC.template.md, CLAUDE.template.md
 - ✅ install.sh — dependency check, git init, beads init, pre-commit hook, .gitignore
 - ✅ docs/architecture.md — полная документация
@@ -1534,6 +1535,46 @@ bd close $TASK_ID --notes="SPEC finalized from draft"
 - Fail fast на критичных проблемах
 
 **Вывод:** После закрытия 2 P0 задач — готово к реализации. P1 задачи закрываются в процессе.
+
+---
+
+### 26. Auto-close features и epics (FINAL)
+
+**Проблема:** Architect создаёт иерархию Epic → Feature → Task. Executor закрывает tasks, но кто закрывает features и epics когда все их children завершены?
+
+**Решение:** Скрипт `close-completed-parents.sh` вызывается из orchestrator каждый цикл
+
+**Workflow:**
+```bash
+# core/scripts/close-completed-parents.sh
+
+# 1. Закрываем features где все tasks closed
+for feature_id in $(bd list --type=feature --status=open --json | jq -r '.[].id'); do
+    children=$(bd children "$feature_id" --json)
+    total=$(echo "$children" | jq 'length')
+    closed=$(echo "$children" | jq '[.[] | select(.status == "closed")] | length')
+
+    if [ "$total" -gt 0 ] && [ "$total" = "$closed" ]; then
+        bd close "$feature_id" --reason="All $total children completed"
+    fi
+done
+
+# 2. Закрываем epics (встроенная команда beads)
+bd epic close-eligible
+```
+
+**Почему Manager + скрипт (а не Senior Executor или FINAL_REVIEW):**
+- Не усложняет промпты агентов
+- Скрипт изолирован, легко тестировать
+- Использует встроенную команду beads для epics
+- `bd stats` и `bd epic status` актуальны в любой момент
+- Real-time не важен — закрытие каждый цикл (~5 мин) достаточно
+
+**Чеклист:**
+- ✅ Features закрываются автоматически когда все tasks done
+- ✅ Epics закрываются автоматически когда все features done
+- ✅ LLM-friendly: агенты не знают об этой логике
+- ✅ Порядок: сначала features, потом epics (правильная иерархия)
 
 ---
 
