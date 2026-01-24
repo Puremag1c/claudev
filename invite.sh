@@ -19,22 +19,70 @@ TARGET=".claudev"
 echo "=== Claudev Invite ==="
 echo ""
 
-# Проверяем git
+# === Определяем систему ===
+
+OS="unknown"
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    OS="macos"
+elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    OS="linux"
+fi
+
+echo "Система: $OS"
+echo ""
+
+# === Устанавливаем git если нужно ===
+
 if ! command -v git &>/dev/null; then
-    echo "Error: git не установлен"
-    echo "  brew install git  # macOS"
-    echo "  apt install git   # Ubuntu/Debian"
-    exit 1
+    echo "Git не найден, устанавливаю..."
+
+    if [[ "$OS" == "macos" ]]; then
+        # macOS: через Xcode Command Line Tools
+        echo "Запускаю xcode-select --install..."
+        echo "Следуйте инструкциям в появившемся окне."
+        xcode-select --install 2>/dev/null || true
+
+        # Ждём установки
+        echo "Ожидаю завершения установки Xcode CLI..."
+        until command -v git &>/dev/null; do
+            sleep 5
+        done
+        echo "  ✓ Git установлен"
+
+    elif [[ "$OS" == "linux" ]]; then
+        # Linux: через apt
+        if command -v apt &>/dev/null; then
+            echo "Устанавливаю через apt..."
+            sudo apt update && sudo apt install -y git
+            echo "  ✓ Git установлен"
+        else
+            echo "Error: apt не найден. Установите git вручную."
+            exit 1
+        fi
+    else
+        echo "Error: неизвестная система. Установите git вручную."
+        exit 1
+    fi
 fi
 
-# Проверяем что не в корне системы
+echo "  ✓ Git: $(git --version)"
+
+# === Проверяем что не в корне системы ===
+
 if [ "$PWD" = "/" ] || [ "$PWD" = "$HOME" ]; then
+    echo ""
     echo "Error: запустите из директории проекта, не из / или ~"
+    echo ""
+    echo "Пример:"
+    echo "  mkdir my-project && cd my-project"
+    echo "  curl -fsSL https://raw.githubusercontent.com/Puremag1c/claudev/main/invite.sh | bash"
     exit 1
 fi
 
-# Проверяем существующую установку
+# === Проверяем существующую установку ===
+
 if [ -d "$TARGET" ]; then
+    echo ""
     echo "Claudev уже установлен в $TARGET/"
     echo ""
     read -p "Переустановить? (y/N) " -n 1 -r
@@ -46,7 +94,9 @@ if [ -d "$TARGET" ]; then
     rm -rf "$TARGET"
 fi
 
-# Клонируем
+# === Клонируем ===
+
+echo ""
 echo "Клонирую claudev ($BRANCH)..."
 git clone --depth 1 --branch "$BRANCH" "$REPO" "$TARGET" 2>/dev/null || \
 git clone --depth 1 "$REPO" "$TARGET"
@@ -58,5 +108,6 @@ echo ""
 echo "Запускаю установщик..."
 echo ""
 
-# Запускаем install.sh
-"$TARGET/install.sh"
+# === Запускаем install.sh ===
+
+"$TARGET/install.sh" --auto-install

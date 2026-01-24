@@ -4,15 +4,14 @@
 # Устанавливает систему в целевой проект
 #
 # Использование:
-#   git clone git@github.com:user/claudev.git .claudev
-#   .claudev/install.sh
+#   .claudev/install.sh              # Интерактивный режим
+#   .claudev/install.sh --auto-install   # Автоустановка зависимостей
 #
-# Опции:
-#   --auto-install   Автоматически установить npm зависимости
 
 set -euo pipefail
 
-# Определяем директории
+# === Определяем директории ===
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TARGET_DIR="$(dirname "$SCRIPT_DIR")"
 CLAUDEV_DIR_NAME="$(basename "$SCRIPT_DIR")"
@@ -26,12 +25,11 @@ echo ""
 # === Проверка директории ===
 
 if [[ "$SCRIPT_DIR" == "$TARGET_DIR" ]]; then
-    echo "Error: claudev должен быть клонирован в подпапку проекта"
+    echo "Error: claudev должен быть в подпапке проекта"
     echo ""
     echo "Правильно:"
     echo "  cd your-project"
-    echo "  git clone <repo> .claudev"
-    echo "  .claudev/install.sh"
+    echo "  curl -fsSL https://raw.githubusercontent.com/Puremag1c/claudev/main/invite.sh | bash"
     exit 1
 fi
 
@@ -40,85 +38,201 @@ if [[ ! -d "$SCRIPT_DIR/core" ]]; then
     exit 1
 fi
 
-# === Проверка зависимостей ===
+# === Определяем систему ===
 
-echo "Checking dependencies..."
-missing=()
+OS="unknown"
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    OS="macos"
+elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    OS="linux"
+fi
 
-command -v bd &>/dev/null || missing+=("beads")
-command -v claude &>/dev/null || missing+=("claude-code")
-command -v gh &>/dev/null || missing+=("gh")
-command -v jq &>/dev/null || missing+=("jq")
+# === Функции установки ===
 
-# gitleaks опционален
-GITLEAKS_AVAILABLE=false
-command -v gitleaks &>/dev/null && GITLEAKS_AVAILABLE=true
+install_homebrew() {
+    if ! command -v brew &>/dev/null; then
+        echo "Homebrew не найден, устанавливаю..."
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
-if [ ${#missing[@]} -gt 0 ]; then
-    echo ""
-    echo "Missing dependencies: ${missing[*]}"
-    echo ""
-    echo "Install commands:"
-    [[ " ${missing[*]} " =~ " beads " ]] && echo "  npm install -g @anthropic/beads"
-    [[ " ${missing[*]} " =~ " claude-code " ]] && echo "  npm install -g @anthropic/claude-code"
-    [[ " ${missing[*]} " =~ " gh " ]] && echo "  brew install gh  # or: apt install gh"
-    [[ " ${missing[*]} " =~ " jq " ]] && echo "  brew install jq  # or: apt install jq"
-    echo ""
+        # Добавляем brew в PATH для текущей сессии
+        if [[ -f "/opt/homebrew/bin/brew" ]]; then
+            eval "$(/opt/homebrew/bin/brew shellenv)"
+        elif [[ -f "/usr/local/bin/brew" ]]; then
+            eval "$(/usr/local/bin/brew shellenv)"
+        fi
+        echo "  ✓ Homebrew установлен"
+    fi
+}
 
-    if [[ "$AUTO_INSTALL" == "--auto-install" ]]; then
-        echo "Auto-installing npm packages..."
-        [[ " ${missing[*]} " =~ " beads " ]] && npm install -g @anthropic/beads
-        [[ " ${missing[*]} " =~ " claude-code " ]] && npm install -g @anthropic/claude-code
-        echo "Note: gh and jq require manual install (brew/apt)"
+install_with_brew() {
+    local pkg=$1
+    local cmd=${2:-$1}
+
+    if ! command -v "$cmd" &>/dev/null; then
+        echo "  Устанавливаю $pkg через brew..."
+        brew install "$pkg"
+        echo "  ✓ $pkg установлен"
+    fi
+}
+
+install_with_apt() {
+    local pkg=$1
+    local cmd=${2:-$1}
+
+    if ! command -v "$cmd" &>/dev/null; then
+        echo "  Устанавливаю $pkg через apt..."
+        sudo apt install -y "$pkg"
+        echo "  ✓ $pkg установлен"
+    fi
+}
+
+install_claude_code() {
+    if ! command -v claude &>/dev/null; then
+        echo "  Устанавливаю Claude Code (официальный скрипт)..."
+        curl -fsSL https://claude.ai/install.sh | bash
+        echo "  ✓ Claude Code установлен"
+    fi
+}
+
+# === Проверка и установка зависимостей ===
+
+echo "Проверяю зависимости..."
+echo ""
+
+if [[ "$AUTO_INSTALL" == "--auto-install" ]]; then
+
+    # === macOS ===
+    if [[ "$OS" == "macos" ]]; then
+        install_homebrew
+
+        echo "Устанавливаю зависимости (macOS)..."
+        install_with_brew "beads" "bd"
+        install_with_brew "gh"
+        install_with_brew "jq"
+        install_claude_code
+
+        # gitleaks опционально
+        if ! command -v gitleaks &>/dev/null; then
+            echo "  Устанавливаю gitleaks (опционально)..."
+            brew install gitleaks || echo "  - gitleaks пропущен"
+        fi
+
+    # === Linux ===
+    elif [[ "$OS" == "linux" ]]; then
+        if command -v apt &>/dev/null; then
+            echo "Устанавливаю зависимости (Linux/apt)..."
+            sudo apt update
+
+            install_with_apt "gh"
+            install_with_apt "jq"
+            install_claude_code
+
+            # beads через npm на Linux (если нет brew)
+            if ! command -v bd &>/dev/null; then
+                if command -v npm &>/dev/null; then
+                    echo "  Устанавливаю beads через npm..."
+                    npm install -g beads
+                    echo "  ✓ beads установлен"
+                else
+                    echo "  Warning: npm не найден, beads нужно установить вручную"
+                fi
+            fi
+        else
+            echo "Error: apt не найден. Установите зависимости вручную."
+            exit 1
+        fi
     else
-        echo "Run with --auto-install to install npm packages automatically"
+        echo "Error: неизвестная система ($OS)"
+        exit 1
+    fi
+
+else
+    # === Без автоустановки — только проверка ===
+
+    missing=()
+
+    command -v bd &>/dev/null || missing+=("beads")
+    command -v claude &>/dev/null || missing+=("claude-code")
+    command -v gh &>/dev/null || missing+=("gh")
+    command -v jq &>/dev/null || missing+=("jq")
+
+    if [ ${#missing[@]} -gt 0 ]; then
+        echo "Не хватает: ${missing[*]}"
+        echo ""
+        echo "Установите вручную или запустите:"
+        echo "  $SCRIPT_DIR/install.sh --auto-install"
         exit 1
     fi
 fi
 
-echo "  ✓ All critical dependencies found"
+# === Проверяем что всё установлено ===
+
+echo ""
+echo "Проверяю установку..."
+
+check_cmd() {
+    local cmd=$1
+    local name=${2:-$1}
+    if command -v "$cmd" &>/dev/null; then
+        echo "  ✓ $name"
+    else
+        echo "  ✗ $name НЕ УСТАНОВЛЕН"
+        return 1
+    fi
+}
+
+check_cmd "bd" "beads"
+check_cmd "claude" "claude-code"
+check_cmd "gh" "gh (GitHub CLI)"
+check_cmd "jq" "jq"
+
+GITLEAKS_AVAILABLE=false
+command -v gitleaks &>/dev/null && GITLEAKS_AVAILABLE=true
 if [ "$GITLEAKS_AVAILABLE" = true ]; then
-    echo "  ✓ gitleaks available (will add pre-commit hook)"
+    echo "  ✓ gitleaks (опционально)"
 else
-    echo "  - gitleaks not found (optional, for secret detection)"
+    echo "  - gitleaks (опционально, не установлен)"
 fi
 
 # === Git ===
 
 echo ""
-echo "Checking git..."
+echo "Настраиваю git..."
 
 cd "$TARGET_DIR"
 
 if [[ ! -d ".git" ]]; then
-    echo "  Initializing git repository..."
+    echo "  Инициализирую git репозиторий..."
     git init
     echo "  ✓ git init"
+else
+    echo "  ✓ .git/ существует"
 fi
 
 # Проверяем remote
 if ! git remote -v | grep -q origin; then
-    echo "  Warning: No git remote configured"
-    echo "  Add one later with: git remote add origin <url>"
+    echo "  - Warning: нет git remote"
+    echo "    Добавьте позже: git remote add origin <url>"
 fi
 
 # === Beads ===
 
 echo ""
-echo "Checking beads..."
+echo "Настраиваю beads..."
 
 if [[ ! -d ".beads" ]]; then
-    echo "  Initializing beads..."
+    echo "  Инициализирую beads..."
     bd init
     echo "  ✓ bd init"
 else
-    echo "  ✓ .beads/ exists"
+    echo "  ✓ .beads/ существует"
 fi
 
 # === Создаём .claude/ с симлинками ===
 
 echo ""
-echo "Creating .claude/ directory..."
+echo "Создаю симлинки..."
+
 mkdir -p "$TARGET_DIR/.claude"
 
 # Симлинк на agents
@@ -126,7 +240,7 @@ if [[ -L "$TARGET_DIR/.claude/agents" ]]; then
     rm "$TARGET_DIR/.claude/agents"
 fi
 if [[ -d "$TARGET_DIR/.claude/agents" ]]; then
-    echo "  Warning: .claude/agents/ уже существует как папка, пропускаю"
+    echo "  - .claude/agents/ уже папка, пропускаю"
 else
     ln -s "../$CLAUDEV_DIR_NAME/core/agents" "$TARGET_DIR/.claude/agents"
     echo "  ✓ .claude/agents -> $CLAUDEV_DIR_NAME/core/agents"
@@ -137,7 +251,7 @@ if [[ -L "$TARGET_DIR/.claude/commands" ]]; then
     rm "$TARGET_DIR/.claude/commands"
 fi
 if [[ -d "$TARGET_DIR/.claude/commands" ]]; then
-    echo "  Warning: .claude/commands/ уже существует как папка, пропускаю"
+    echo "  - .claude/commands/ уже папка, пропускаю"
 else
     ln -s "../$CLAUDEV_DIR_NAME/core/commands" "$TARGET_DIR/.claude/commands"
     echo "  ✓ .claude/commands -> $CLAUDEV_DIR_NAME/core/commands"
@@ -148,7 +262,7 @@ if [[ -L "$TARGET_DIR/scripts" ]]; then
     rm "$TARGET_DIR/scripts"
 fi
 if [[ -d "$TARGET_DIR/scripts" ]]; then
-    echo "  Warning: scripts/ уже существует как папка, пропускаю"
+    echo "  - scripts/ уже папка, пропускаю"
 else
     ln -s "$CLAUDEV_DIR_NAME/core/scripts" "$TARGET_DIR/scripts"
     echo "  ✓ scripts -> $CLAUDEV_DIR_NAME/core/scripts"
@@ -157,64 +271,52 @@ fi
 # === Копируем config ===
 
 echo ""
-echo "Setting up config..."
+echo "Настраиваю конфиг..."
 
 mkdir -p "$TARGET_DIR/.claudev"
 
 if [[ -f "$TARGET_DIR/.claudev/config.sh" ]]; then
-    echo "  - config.sh already exists, keeping"
+    echo "  - config.sh уже существует"
 else
     cp "$SCRIPT_DIR/templates/config.template.sh" "$TARGET_DIR/.claudev/config.sh"
-    echo "  ✓ .claudev/config.sh created"
+    echo "  ✓ .claudev/config.sh создан"
 fi
 
 # === Рабочие директории ===
 
 echo ""
-echo "Creating work directories..."
+echo "Создаю рабочие директории..."
 mkdir -p "$TARGET_DIR/logs/archive"
 mkdir -p "$TARGET_DIR/stats"
 echo "  ✓ logs/"
-echo "  ✓ logs/archive/"
 echo "  ✓ stats/"
 
 # === Pre-commit hook (если gitleaks есть) ===
 
 if [ "$GITLEAKS_AVAILABLE" = true ]; then
     echo ""
-    echo "Setting up pre-commit hook..."
+    echo "Настраиваю pre-commit hook..."
 
     HOOK_FILE="$TARGET_DIR/.git/hooks/pre-commit"
 
-    if [[ -f "$HOOK_FILE" ]]; then
-        if grep -q "gitleaks" "$HOOK_FILE"; then
-            echo "  - pre-commit hook already has gitleaks"
-        else
-            echo "  Adding gitleaks to existing pre-commit hook..."
-            cat >> "$HOOK_FILE" << 'EOF'
-
+    if [[ -f "$HOOK_FILE" ]] && grep -q "gitleaks" "$HOOK_FILE"; then
+        echo "  - gitleaks уже в pre-commit"
+    else
+        mkdir -p "$TARGET_DIR/.git/hooks"
+        cat >> "$HOOK_FILE" << 'EOF'
+#!/bin/bash
 # Gitleaks secret detection (added by claudev)
 gitleaks protect --staged --verbose
 EOF
-            echo "  ✓ gitleaks added to pre-commit"
-        fi
-    else
-        cat > "$HOOK_FILE" << 'EOF'
-#!/bin/bash
-# Pre-commit hook (added by claudev)
-
-# Gitleaks secret detection
-gitleaks protect --staged --verbose
-EOF
         chmod +x "$HOOK_FILE"
-        echo "  ✓ pre-commit hook created with gitleaks"
+        echo "  ✓ pre-commit hook с gitleaks"
     fi
 fi
 
 # === .gitignore ===
 
 echo ""
-echo "Updating .gitignore..."
+echo "Обновляю .gitignore..."
 
 GITIGNORE="$TARGET_DIR/.gitignore"
 touch "$GITIGNORE"
@@ -239,15 +341,12 @@ add_to_gitignore ".claudev/orchestrator.lock"
 # === Финиш ===
 
 echo ""
-echo "=== Installation complete ==="
+echo "=========================================="
+echo "  Claudev установлен!"
+echo "=========================================="
 echo ""
-echo "Следующие шаги:"
-echo "  1. Запустите систему: ./scripts/orchestrator.sh"
-echo "  2. Tech Writer спросит что вы хотите создать"
-echo "  3. Или заполните SPEC.md вручную и перезапустите"
+echo "Запустите систему:"
+echo "  ./scripts/orchestrator.sh"
 echo ""
-echo "Полезные команды:"
-echo "  bd ready                    # Посмотреть готовые задачи"
-echo "  bd list                     # Все задачи"
-echo "  ./scripts/orchestrator.sh   # Запустить систему"
+echo "Tech Writer спросит что вы хотите создать."
 echo ""
