@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4] - 2026-01-24
+
+### Added
+- Architect обязан повышать версию и обновлять changelog в FINAL_REVIEW
+- VERSION файл для хранения текущей версии (универсально для любого стека)
+- SemVer: MAJOR (breaking) / MINOR (features) / PATCH (bugfixes)
+
+### Changed
+- architect.md: расширена секция MODE: final_review с версионированием
+
 ## [0.3] - 2026-01-24
 
 ### Added

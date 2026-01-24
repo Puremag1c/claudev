@@ -1544,6 +1544,48 @@ bd close $TASK_ID --notes="SPEC finalized from draft"
 
 **Решение:** Скрипт `close-completed-parents.sh` вызывается из orchestrator каждый цикл
 
+---
+
+### 27. Версионирование при закрытии итерации (FINAL)
+
+**Проблема:** Кто отвечает за повышение версии и changelog при завершении итерации?
+
+**Решение:** Architect в MODE: final_review обязан выполнить версионирование перед подтверждением PASSED.
+
+**Workflow:**
+```bash
+# 1. Прочитать текущую версию
+cat VERSION 2>/dev/null || echo "0.0.0"
+
+# 2. Определить тип (по closed задачам):
+#    - breaking changes → MAJOR
+#    - features → MINOR
+#    - bugfixes/tasks → PATCH
+
+# 3. Обновить VERSION
+echo "0.3.0" > VERSION
+
+# 4. Сгенерировать CHANGELOG.md из closed задач
+
+# 5. Закоммитить
+git add VERSION CHANGELOG.md
+git commit -m "Release v$(cat VERSION)"
+
+# 6. Подтвердить
+echo "FINAL_REVIEW: PASSED"
+```
+
+**Почему Architect (а не Senior Executor):**
+- Architect знает что было сделано в итерации
+- Architect понимает тип изменений (breaking/feature/bugfix)
+- Senior Executor делает только technical release (tag, push)
+
+**Чеклист:**
+- ✅ SemVer: MAJOR.MINOR.PATCH
+- ✅ VERSION файл в корне (универсально для любого стека)
+- ✅ CHANGELOG.md генерируется из closed задач
+- ✅ Коммит "Release vX.Y.Z" перед PASSED
+
 **Workflow:**
 ```bash
 # core/scripts/close-completed-parents.sh

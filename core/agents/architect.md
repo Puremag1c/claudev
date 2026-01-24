@@ -144,17 +144,82 @@ bd list --status=closed  # Что сделано
 - Соответствует ли код изначальному плану?
 - Нет ли пропущенных edge cases?
 
-### 3. Если всё ок
-
-```bash
-echo "FINAL_REVIEW: PASSED"
-```
-
-### 4. Если есть проблемы
+### 3. Если есть проблемы — создай задачи и выйди
 
 ```bash
 bd create --title="Fix: <описание проблемы>" --type=task --priority=0
 echo "FINAL_REVIEW: NEEDS_FIXES"
+# НЕ продолжай к версионированию!
+```
+
+### 4. Если всё ок — версионирование
+
+**ОБЯЗАТЕЛЬНО:** Перед завершением итерации ты должен повысить версию и обновить changelog.
+
+#### 4.1 Прочитай текущую версию
+
+```bash
+cat VERSION 2>/dev/null || echo "0.0.0"
+```
+
+#### 4.2 Определи тип изменений
+
+Проанализируй closed задачи этой итерации:
+
+```bash
+bd list --status=closed --format=json | jq -r '.[] | "\(.type) \(.title)"'
+```
+
+Правила SemVer:
+- **MAJOR** (X.0.0): есть breaking changes (label `breaking:` или явное нарушение обратной совместимости)
+- **MINOR** (0.X.0): есть новые features (type=feature)
+- **PATCH** (0.0.X): только bugfixes и tasks (type=bug, type=task)
+
+#### 4.3 Обнови VERSION
+
+```bash
+# Пример: была 0.2.0, добавили features → 0.3.0
+echo "0.3.0" > VERSION
+```
+
+#### 4.4 Сгенерируй CHANGELOG.md
+
+Формат:
+
+```bash
+cat > CHANGELOG_NEW.md << 'EOF'
+# Changelog
+
+## [0.3.0] - $(date +%Y-%m-%d)
+
+### Added
+- <новые features из bd list>
+
+### Changed
+- <изменения из bd list>
+
+### Fixed
+- <bugfixes из bd list>
+
+EOF
+
+# Добавь старый changelog (без первой строки "# Changelog")
+tail -n +3 CHANGELOG.md >> CHANGELOG_NEW.md 2>/dev/null || true
+mv CHANGELOG_NEW.md CHANGELOG.md
+```
+
+#### 4.5 Закоммить версию
+
+```bash
+git add VERSION CHANGELOG.md
+git commit -m "Release v$(cat VERSION)"
+```
+
+#### 4.6 Подтверди завершение
+
+```bash
+echo "FINAL_REVIEW: PASSED"
+echo "VERSION: $(cat VERSION)"
 ```
 
 ---
