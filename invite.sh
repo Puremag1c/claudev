@@ -26,6 +26,26 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     OS="macos"
 elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
     OS="linux"
+elif [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]] || [[ "$OSTYPE" == "win32" ]]; then
+    OS="windows"
+fi
+
+# === Windows: требуется WSL ===
+
+if [[ "$OS" == "windows" ]]; then
+    echo "Windows detected."
+    echo ""
+    echo "Claudev требует WSL (Windows Subsystem for Linux)."
+    echo ""
+    echo "1. Установите WSL (откройте PowerShell как администратор):"
+    echo "   wsl --install"
+    echo ""
+    echo "2. Перезагрузите компьютер"
+    echo ""
+    echo "3. Откройте Ubuntu из меню Пуск и запустите:"
+    echo "   curl -fsSL https://raw.githubusercontent.com/Puremag1c/claudev/main/invite.sh | bash"
+    echo ""
+    exit 1
 fi
 
 echo "Система: $OS"

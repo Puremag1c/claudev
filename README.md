@@ -25,10 +25,18 @@ curl -fsSL https://raw.githubusercontent.com/Puremag1c/claudev/main/invite.sh | 
 
 ## Требования
 
-- macOS или Linux
-- [Claude Code](https://claude.ai/download) — AI ассистент
-- Git — система контроля версий
-- GitHub аккаунт (опционально, для автоматических PR)
+- macOS, Linux или Windows (через WSL)
+- Всё остальное установится автоматически
+
+### Windows
+
+На Windows нужен WSL. Откройте PowerShell как администратор:
+
+```powershell
+wsl --install
+```
+
+После перезагрузки откройте Ubuntu из меню Пуск и запустите команду установки.
 
 ## Запуск
 
