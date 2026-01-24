@@ -124,6 +124,15 @@ git clone --depth 1 "$REPO" "$TARGET"
 # Удаляем .git (не нужен, обновления через переустановку)
 rm -rf "$TARGET/.git"
 
+# Удаляем файлы разработки — пользователю не нужны
+rm -f "$TARGET/README.md"
+rm -f "$TARGET/PROJECT.md"
+rm -f "$TARGET/CLAUDE.md"
+rm -f "$TARGET/AGENTS.md"
+rm -f "$TARGET/invite.sh"
+rm -rf "$TARGET/.beads"
+rm -rf "$TARGET/docs"
+
 echo ""
 echo "Запускаю установщик..."
 echo ""
