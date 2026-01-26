@@ -115,9 +115,8 @@ bd close $TASK --notes="Merged and deployed"
 
 ```bash
 bd update $TASK --status=open \
+    --remove-label=needs-review \
     --notes="Review failed: <причина>. Fix and resubmit."
-# Убираем label needs-review чтобы executor переделал
-bd label remove $TASK needs-review
 ```
 
 ### 8. Rollback (если CI упал после merge)

@@ -533,12 +533,12 @@ CI/CD GitHub (опционально)
     - После 3 retry → эскалация к Architect
 
 - ✅ **Фаза PLAN_REVIEW:**
-  - Analysts создают задачи БЕЗ dependencies (только `--label=added-by:analyst-*`)
+  - Analysts создают задачи БЕЗ dependencies (с `--labels=added-by:analyst-*,model:*`)
   - Architect в PLAN_REVIEW расставляет deps для новых задач
   - Manager создаёт задачу-триггер `run-plan-review`
   - Architect:
     1. Claim `run-plan-review`
-    2. Находит задачи: `bd list --label=added-by:analyst-*`
+    2. Находит задачи: `bd list --format=json | jq '.[] | select(.labels[]? | startswith("added-by:analyst-"))'`
     3. Убирает дубликаты: `bd close <id> --reason="Дубликат claudev-xxx"`
     4. Разрешает противоречия: `bd close <id> --reason="Противоречит Security: ..."`
     5. Close `run-plan-review`
@@ -824,7 +824,7 @@ done
 if ! git remote -v | grep -q github; then
   log "WARN" "No GitHub remote detected. Final merge will require manual action."
   bd create --title="Setup GitHub remote for automated PR workflow" \
-    --type=task --priority=4 --label=optional
+    --type=task --priority=4 --labels=optional
 fi
 
 # Senior Executor при merge:
@@ -1352,7 +1352,7 @@ cat > stats/iteration-$(date +%Y%m%d-%H%M%S).md <<EOF
 ## Tasks
 - Total created: $(bd list --format=json | jq 'length')
 - Completed: $(bd list --status=closed --format=json | jq 'length')
-- Blocked: $(bd list --label=blocked --format=json | jq 'length')
+- Blocked: $(bd list --format=json | jq '[.[] | select(.labels[]? | startswith("blocked:"))] | length')
 
 ## Agents Activity
 | Agent | Runs | Est. tokens |
@@ -1360,7 +1360,7 @@ cat > stats/iteration-$(date +%Y%m%d-%H%M%S).md <<EOF
 $(generate_agent_stats)
 
 ## Blocked Tasks
-$(bd list --label=blocked --format=json | jq -r '.[] | "- \`\(.id)\`: \(.title) (reason: \(.notes))"')
+$(bd list --format=json | jq -r '.[] | select(.labels[]? | startswith("blocked:")) | "- \`\(.id)\`: \(.title) (reason: \(.notes))"')
 EOF
 ```
 

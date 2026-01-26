@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.13] - 2026-01-26
+
+### Fixed
+- **P2**: senior-executor.md унифицирован подход к labels (`bd label remove` → `bd update --remove-label`)
+- **P2**: PROJECT.md примеры обновлены для соответствия реальному коду:
+  - `bd list --label=` → jq фильтры (как в orchestrator.sh)
+  - `--label=X` → `--labels=X` для bd create
+
 ## [0.4.12] - 2026-01-26
 
 ### Fixed
