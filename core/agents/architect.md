@@ -120,12 +120,19 @@ bd close <conflicting-id> --reason="Противоречит Security: ..."
 ### 5. Закрой trigger
 
 ```bash
-bd update run-plan-review --status=in_progress
-# ... работа ...
-bd close run-plan-review
+# Найди id trigger task по title
+trigger_id=$(bd list --format=json | jq -r '.[] | select(.title == "run-plan-review") | .id' | head -1)
 
+# Claim trigger
+bd update "$trigger_id" --status=in_progress
+
+# ... работа ...
+
+# Закрой trigger и создай milestone
+bd close "$trigger_id"
 bd create --title="Plan reviewed" --type=task --label=milestone:plan-reviewed
-bd close <id>
+milestone_id=$(bd list --format=json | jq -r '.[] | select(.labels[]? == "milestone:plan-reviewed") | .id' | head -1)
+bd close "$milestone_id"
 ```
 
 ---

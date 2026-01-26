@@ -163,36 +163,6 @@ detect_phase() {
     ./scripts/detect-phase.sh 2>/dev/null || echo "UNKNOWN"
 }
 
-# === Run agent with prompt (non-interactive, for background work) ===
-
-run_agent() {
-    local agent_name=$1
-    local agent_file=$2
-    local extra_context=${3:-""}
-
-    log "INFO" "Running agent: $agent_name"
-
-    local agent_prompt
-    agent_prompt=$(cat "$agent_file" 2>/dev/null || echo "# Agent not found: $agent_file")
-
-    local output_file="$LOGS_DIR/${agent_name}-$(date +%s).log"
-
-    if timeout "$TASK_TIMEOUT" claude --model sonnet --print > "$output_file" 2>&1 <<EOF
-$agent_prompt
-
----
-PROJECT_ROOT: $PROJECT_DIR
-$extra_context
-EOF
-    then
-        log "INFO" "Agent $agent_name completed"
-        return 0
-    else
-        log "WARN" "Agent $agent_name failed or timed out"
-        return 1
-    fi
-}
-
 # === Run agent interactively (for user dialogue) ===
 
 run_interactive_agent() {
@@ -442,8 +412,15 @@ $spec_content"
 main() {
     acquire_lock
 
+    # Find VERSION relative to this script (works with symlinks)
+    local script_real_path claudev_root version
+    script_real_path=$(realpath "${BASH_SOURCE[0]}" 2>/dev/null || readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")
+    claudev_root=$(dirname "$(dirname "$(dirname "$script_real_path")")")
+    version=$(cat "$claudev_root/VERSION" 2>/dev/null || echo "unknown")
+
     log "INFO" "=========================================="
     log "INFO" "ORCHESTRATOR STARTED (PID $$)"
+    log "INFO" "Version: $version"
     log "INFO" "Project: $PROJECT_DIR"
     log "INFO" "=========================================="
 

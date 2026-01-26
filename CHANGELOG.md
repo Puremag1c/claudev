@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.5] - 2026-01-26
+
+### Fixed
+- **P1**: architect.md теперь ищет task id по title (bd требует id, не title)
+- **P1**: run-senior-executor.sh корректно удаляет label (`--remove-label` вместо `--label=""`)
+- **P1**: analyst-architecture.md валидирует наличие `model:*` label на tasks (defense in depth)
+
+### Changed
+- orchestrator.sh выводит версию при старте (отладка)
+- detect-phase.sh: убрано дублирование в HELPERS фазе
+
+### Removed
+- Мёртвый код `run_agent()` из orchestrator.sh (заменён на `run_agent_with_mode`)
+
 ## [0.4.4] - 2026-01-26
 
 ### Fixed

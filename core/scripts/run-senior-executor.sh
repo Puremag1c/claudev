@@ -72,8 +72,8 @@ ACTION: Review and merge if ready"
 
     if timeout "$TASK_TIMEOUT" claude --model opus -p "$full_prompt" > "$output_file" 2>&1; then
         log "INFO" "Review completed for $task_id"
-        # Remove needs-review label
-        bd update "$task_id" --label="" 2>/dev/null || true
+        # Remove needs-review label, add reviewed label
+        bd update "$task_id" --remove-label needs-review --add-label reviewed 2>/dev/null || true
     else
         local exit_code=$?
         if [ $exit_code -eq 124 ]; then

@@ -90,12 +90,7 @@ fi
 
 # HELPERS (Analysts): план есть, но analysts не завершили
 if [ "$HAS_ANALYSTS_DONE" -eq 0 ]; then
-    # Проверяем: есть ли открытые trigger-задачи analysts
-    if [ "$ANALYST_TRIGGERS_OPEN" -gt 0 ]; then
-        echo "HELPERS"  # Ждём завершения analysts
-    else
-        echo "HELPERS"  # Нужно запустить analysts
-    fi
+    echo "HELPERS"
     exit 0
 fi
 
