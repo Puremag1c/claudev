@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.4.1] - 2026-01-26
+
+### Fixed
+- Heredoc syntax in orchestrator.sh — `$(cat ...)` теперь выполняется до heredoc
+- Heredoc syntax in run-executors.sh — error handler перенесён из heredoc body в if/then
+- Heredoc syntax in run-analysts.sh — аналогичное исправление
+- Backpressure filter — теперь считает только `executor` label, не `model:*`
+
+### Added
+- Phase dispatcher в orchestrator — прямой вызов скриптов по фазам вместо зависимости от Manager
+- run-senior-executor.sh — обработка задач с `needs-review` label (sequential quality gate)
+
+### Changed
+- Orchestrator больше не зависит от Manager.md для dispatch команд
+- Manager становится advisory (опционально для отладки)
+
 ## [0.4] - 2026-01-24
 
 ### Added

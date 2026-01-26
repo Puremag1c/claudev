@@ -1,0 +1,117 @@
+#!/bin/bash
+# core/scripts/run-senior-executor.sh
+# Обрабатывает задачи с label=needs-review через Senior Executor агента.
+# Работает ПОСЛЕДОВАТЕЛЬНО — один PR за раз (quality gate).
+#
+# Использование: ./scripts/run-senior-executor.sh
+
+set -euo pipefail
+
+PROJECT_DIR=$(pwd)
+LOGS_DIR="$PROJECT_DIR/logs"
+CONFIG_FILE="$PROJECT_DIR/.claudev/config.sh"
+
+# Load config
+if [ -f "$CONFIG_FILE" ]; then
+    # shellcheck source=/dev/null
+    source "$CONFIG_FILE"
+fi
+
+TASK_TIMEOUT="${TASK_TIMEOUT:-10m}"
+
+mkdir -p "$LOGS_DIR"
+
+log() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [SENIOR-EXECUTOR] $1: $2" | tee -a "$LOGS_DIR/claudev.log"
+}
+
+# === Get tasks needing review ===
+
+get_review_tasks() {
+    # Tasks with label=needs-review
+    bd list --status=in_progress --format=json 2>/dev/null | \
+        jq -r '.[] | select(.labels[]? == "needs-review") | .id' 2>/dev/null || true
+}
+
+# === Process single review task ===
+
+process_review() {
+    local task_id=$1
+
+    log "INFO" "Processing review for $task_id"
+
+    # Get task details
+    local task_json
+    task_json=$(bd show "$task_id" --format=json 2>/dev/null || echo "{}")
+
+    local task_title
+    task_title=$(echo "$task_json" | jq -r '.title // "Unknown"')
+
+    # Check if senior-executor agent exists
+    local agent_file=".claude/agents/senior-executor.md"
+    local agent_prompt
+    if [ -f "$agent_file" ]; then
+        agent_prompt=$(cat "$agent_file")
+    else
+        agent_prompt="# Senior Executor
+You are a senior developer doing code review.
+Review the code, check for issues, and either approve or request changes.
+If approved, mark the task as complete with bd close."
+    fi
+
+    # Run senior executor
+    local output_file="$LOGS_DIR/senior-executor-$task_id.log"
+
+    if timeout "$TASK_TIMEOUT" claude --model sonnet --print > "$output_file" 2>&1 <<EOF
+$agent_prompt
+
+---
+TASK_ID: $task_id
+TASK: $task_json
+PROJECT_ROOT: $PROJECT_DIR
+ACTION: Review and merge if ready
+EOF
+    then
+        log "INFO" "Review completed for $task_id"
+        # Remove needs-review label
+        bd update "$task_id" --label="" 2>/dev/null || true
+    else
+        local exit_code=$?
+        if [ $exit_code -eq 124 ]; then
+            log "WARN" "Review timeout for $task_id"
+        else
+            log "ERROR" "Review failed for $task_id (exit: $exit_code)"
+        fi
+    fi
+}
+
+# === Main ===
+
+main() {
+    log "INFO" "=========================================="
+    log "INFO" "SENIOR-EXECUTOR STARTED"
+    log "INFO" "=========================================="
+
+    # Get tasks needing review
+    local tasks
+    tasks=$(get_review_tasks)
+
+    if [ -z "$tasks" ]; then
+        log "INFO" "No tasks need review"
+        exit 0
+    fi
+
+    # Process SEQUENTIALLY (quality gate)
+    local count=0
+    for task_id in $tasks; do
+        ((count++))
+        log "INFO" "Review $count: $task_id"
+        process_review "$task_id"
+    done
+
+    log "INFO" "Processed $count reviews"
+    bd sync 2>/dev/null || true
+    log "INFO" "SENIOR-EXECUTOR FINISHED"
+}
+
+main "$@"

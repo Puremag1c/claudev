@@ -163,6 +163,100 @@ detect_phase() {
     ./scripts/detect-phase.sh 2>/dev/null || echo "UNKNOWN"
 }
 
+# === Run agent with prompt ===
+
+run_agent() {
+    local agent_name=$1
+    local agent_file=$2
+    local extra_context=${3:-""}
+
+    log "INFO" "Running agent: $agent_name"
+
+    local agent_prompt
+    agent_prompt=$(cat "$agent_file" 2>/dev/null || echo "# Agent not found: $agent_file")
+
+    local output_file="$LOGS_DIR/${agent_name}-$(date +%s).log"
+
+    if timeout "$TASK_TIMEOUT" claude --model sonnet --print > "$output_file" 2>&1 <<EOF
+$agent_prompt
+
+---
+PROJECT_ROOT: $PROJECT_DIR
+$extra_context
+EOF
+    then
+        log "INFO" "Agent $agent_name completed"
+        return 0
+    else
+        log "WARN" "Agent $agent_name failed or timed out"
+        return 1
+    fi
+}
+
+# === Phase dispatcher ===
+
+dispatch_phase() {
+    local phase=$1
+
+    case $phase in
+        INIT)
+            # Tech Writer creates SPEC.md
+            if [ -f ".claude/agents/tech-writer.md" ]; then
+                run_agent "tech-writer" ".claude/agents/tech-writer.md"
+            else
+                log "WARN" "tech-writer.md not found, skipping INIT"
+            fi
+            ;;
+
+        PLANNING)
+            # Architect creates implementation plan
+            if [ -f ".claude/agents/architect.md" ]; then
+                run_agent "architect" ".claude/agents/architect.md" "MODE: create_plan"
+            else
+                log "WARN" "architect.md not found, skipping PLANNING"
+            fi
+            ;;
+
+        HELPERS)
+            # Run all analysts in parallel
+            ./scripts/run-analysts.sh 2>/dev/null || log "WARN" "run-analysts.sh failed"
+            ;;
+
+        PLAN_REVIEW)
+            # Architect reviews plan after analysts
+            if [ -f ".claude/agents/architect.md" ]; then
+                run_agent "architect" ".claude/agents/architect.md" "MODE: plan_review"
+            else
+                log "WARN" "architect.md not found, skipping PLAN_REVIEW"
+            fi
+            ;;
+
+        IMPLEMENTATION)
+            # Run executors (parallel) then senior executor (sequential)
+            ./scripts/run-executors.sh 2>/dev/null || log "WARN" "run-executors.sh failed"
+            ./scripts/run-senior-executor.sh 2>/dev/null || true
+            ;;
+
+        FINAL_REVIEW)
+            # Architect does final review
+            if [ -f ".claude/agents/architect.md" ]; then
+                run_agent "architect" ".claude/agents/architect.md" "MODE: final_review"
+            else
+                log "WARN" "architect.md not found, skipping FINAL_REVIEW"
+            fi
+            ;;
+
+        DONE)
+            log "INFO" "Project phase: DONE"
+            return 0
+            ;;
+
+        *)
+            log "WARN" "Unknown phase: $phase"
+            ;;
+    esac
+}
+
 # === Main loop ===
 
 main() {
@@ -193,22 +287,11 @@ main() {
         phase=$(detect_phase)
         log "INFO" "--- Cycle $cycle | Phase: $phase ---"
 
-        # 4. Run Manager agent
-        local manager_out
-        manager_out=$(timeout "$TASK_TIMEOUT" claude --model sonnet --print <<EOF 2>&1 || true)
-$(cat .claude/agents/manager.md 2>/dev/null || echo "# Manager agent not found")
-
----
-PROJECT_ROOT: $PROJECT_DIR
-CURRENT_PHASE: $phase
-CYCLE: $cycle
-EOF
-
-        # Log manager output
-        echo "$manager_out" >> "$LOGS_DIR/manager-$cycle.log"
+        # 4. Dispatch phase-specific actions
+        dispatch_phase "$phase"
 
         # 5. Check for completion
-        if echo "$manager_out" | grep -q "PROJECT_COMPLETE"; then
+        if [ "$phase" = "DONE" ]; then
             log "INFO" "=========================================="
             log "INFO" "PROJECT COMPLETE"
             log "INFO" "=========================================="
@@ -224,13 +307,7 @@ EOF
             exit 0
         fi
 
-        # 6. Check for critical errors
-        if echo "$manager_out" | grep -qi "CRITICAL_ERROR\|FATAL"; then
-            log "ERROR" "Critical error detected in Manager output"
-            ./scripts/notify.sh "Critical error" "Check logs/manager-$cycle.log" 2>/dev/null || true
-        fi
-
-        # 7. Auto-close completed features and epics
+        # 6. Auto-close completed features and epics
         ./scripts/close-completed-parents.sh 2>/dev/null || true
 
         # 8. Pause before next iteration

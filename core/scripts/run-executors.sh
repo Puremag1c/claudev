@@ -32,9 +32,9 @@ log() {
 # Считаем active executors через beads (работает всегда, не зависит от gh)
 
 count_active_executors() {
-    # Считаем задачи в in_progress с label executor или model:*
+    # Считаем задачи в in_progress с label executor
     bd list --status=in_progress --format=json 2>/dev/null | \
-        jq '[.[] | select(.labels[]? | test("^(executor|model:)"))] | length' 2>/dev/null || echo "0"
+        jq '[.[] | select(.labels[]? == "executor")] | length' 2>/dev/null || echo "0"
 }
 
 # === Get ready tasks for executors ===
@@ -74,8 +74,18 @@ run_executor() {
 
     # Run executor agent with timeout
     local output_file="$LOGS_DIR/executor-$task_id.log"
+    local executor_prompt
+    executor_prompt=$(cat .claude/agents/executor.md 2>/dev/null || echo "# Executor agent not found")
 
-    timeout "$TASK_TIMEOUT" claude --model "$model" --print <<EOF > "$output_file" 2>&1 || {
+    if ! timeout "$TASK_TIMEOUT" claude --model "$model" --print > "$output_file" 2>&1 <<EOF
+$executor_prompt
+
+---
+TASK_ID: $task_id
+TASK: $task_json
+PROJECT_ROOT: $PROJECT_DIR
+EOF
+    then
         local exit_code=$?
         if [ $exit_code -eq 124 ]; then
             log "WARN" "Executor timeout for $task_id"
@@ -91,14 +101,7 @@ run_executor() {
             bd update "$task_id" --status=open --notes="Executor failed (exit: $exit_code)" 2>/dev/null || true
         fi
         return 0
-    }
-$(cat .claude/agents/executor.md 2>/dev/null || echo "# Executor agent not found")
-
----
-TASK_ID: $task_id
-TASK: $task_json
-PROJECT_ROOT: $PROJECT_DIR
-EOF
+    fi
 
     log "INFO" "Executor completed for $task_id"
 }

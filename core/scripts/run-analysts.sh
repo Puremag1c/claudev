@@ -62,8 +62,18 @@ run_analyst() {
 
     # Run analyst with timeout
     local output_file="$LOGS_DIR/analyst-$analyst.log"
+    local analyst_prompt
+    analyst_prompt=$(cat "$agent_file" 2>/dev/null)
 
-    timeout "$TASK_TIMEOUT" claude --model sonnet --print <<EOF > "$output_file" 2>&1 || {
+    if ! timeout "$TASK_TIMEOUT" claude --model sonnet --print > "$output_file" 2>&1 <<EOF
+$analyst_prompt
+
+---
+ANALYST: $analyst
+TRIGGER_TASK: $task_id
+PROJECT_ROOT: $PROJECT_DIR
+EOF
+    then
         local exit_code=$?
         if [ $exit_code -eq 124 ]; then
             log "WARN" "Analyst $analyst timeout"
@@ -73,14 +83,7 @@ run_analyst() {
             bd update "$task_id" --status=open --notes="Failed (exit: $exit_code)"
         fi
         return 0
-    }
-$(cat "$agent_file" 2>/dev/null)
-
----
-ANALYST: $analyst
-TRIGGER_TASK: $task_id
-PROJECT_ROOT: $PROJECT_DIR
-EOF
+    fi
 
     # Close trigger task
     bd close "$task_id" --reason="Analyst $analyst completed"
