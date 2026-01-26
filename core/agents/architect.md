@@ -194,10 +194,14 @@ echo "0.3.0" > VERSION
 Формат:
 
 ```bash
-cat > CHANGELOG_NEW.md << 'EOF'
+# Вычисляем дату и версию заранее (heredoc не expandит внутри 'EOF')
+TODAY=$(date +%Y-%m-%d)
+NEW_VERSION=$(cat VERSION)
+
+cat > CHANGELOG_NEW.md << EOF
 # Changelog
 
-## [0.3.0] - $(date +%Y-%m-%d)
+## [$NEW_VERSION] - $TODAY
 
 ### Added
 - <новые features из bd list>
@@ -210,7 +214,7 @@ cat > CHANGELOG_NEW.md << 'EOF'
 
 EOF
 
-# Добавь старый changelog (без первой строки "# Changelog")
+# Добавь старый changelog (без "# Changelog" и пустой строки)
 tail -n +3 CHANGELOG.md >> CHANGELOG_NEW.md 2>/dev/null || true
 mv CHANGELOG_NEW.md CHANGELOG.md
 ```
