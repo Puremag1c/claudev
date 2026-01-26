@@ -118,17 +118,12 @@ main() {
     # Wait for all
     wait
 
-    # Check if all done
+    # Check completion status (milestone created by orchestrator)
     local open_triggers
     open_triggers=$(bd list --status=open --format=json 2>/dev/null | jq '[.[] | select(.title | startswith("run-analyst-"))] | length' 2>/dev/null || echo "0")
 
     if [ "$open_triggers" -eq 0 ]; then
         log "INFO" "All analysts completed"
-        # Set milestone
-        bd create --title="Analysts complete" --type=task --label=milestone:analysts-done 2>/dev/null || true
-        local milestone_id
-        milestone_id=$(bd list --format=json | jq -r '.[] | select(.labels[]? == "milestone:analysts-done") | .id' | head -1)
-        [ -n "$milestone_id" ] && bd close "$milestone_id" 2>/dev/null || true
     else
         log "INFO" "Some analysts still open ($open_triggers remaining)"
     fi

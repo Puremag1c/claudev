@@ -103,8 +103,7 @@ cat > SPEC.draft.md <<EOF
 [какие вопросы открыты]
 EOF
 
-bd update $TASK_ID --notes="Draft saved: SPEC.draft.md. Awaiting user input."
-bd close $TASK_ID
+echo "Draft saved. Will continue next session."
 ```
 
 ## Финализация
@@ -112,22 +111,22 @@ bd close $TASK_ID
 Когда SPEC.md готов:
 
 ```bash
-# Если был draft — перезаписываем
-mv SPEC.draft.md SPEC.md 2>/dev/null || true
+# Если был draft — удаляем его
+rm -f SPEC.draft.md
 
-# Или создаём новый
+# Создаём финальный SPEC.md
 cat > SPEC.md <<EOF
 [финальная спецификация]
 EOF
 
-bd close $TASK_ID --notes="SPEC.md finalized"
+echo "SPEC.md created. Ready for PLANNING phase."
 ```
 
 ## Инструменты
 
 - Читать файлы: `cat`, `less`
-- Писать: редактировать SPEC.md / SPEC.draft.md
-- Beads: `bd update`, `bd close`
+- Писать: `cat > SPEC.md`, `cat > SPEC.draft.md`
+- НЕ используй beads — твой state это файлы
 
 ## Чего НЕ делать
 

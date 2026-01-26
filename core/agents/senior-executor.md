@@ -98,11 +98,14 @@ if command -v gh &>/dev/null && gh auth status &>/dev/null; then
     git push origin --delete "task/beads-$TASK"
     git branch -d "task/beads-$TASK"
 else
-    # Local merge
+    # Local squash merge (executor commits are WIP, squash them)
     git checkout main
-    git merge --no-ff "task/beads-$TASK" -m "Merge: $TASK_TITLE"
+    git merge --squash "task/beads-$TASK"
+    git commit -m "$TASK_TITLE
+
+Task: $TASK"
     git push 2>/dev/null || echo "WARN: Cannot push to remote"
-    git branch -d "task/beads-$TASK"
+    git branch -D "task/beads-$TASK"
 fi
 
 bd close $TASK --notes="Merged and deployed"

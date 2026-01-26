@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.10] - 2026-01-26
+
+### Fixed
+- **P1**: Tech Writer больше не использует bd commands (state через файлы SPEC.md/SPEC.draft.md)
+- **P1**: Executor больше не делает squash — Senior Executor делает squash merge (безопаснее)
+- **P2**: Milestone creation для analysts перенесён в orchestrator (нет race condition)
+- **P3**: VERSION path в stats теперь передаётся параметром (корректно при symlinks)
+
+### Changed
+- tech-writer.md: убраны `bd update`/`bd close`, только файловые операции
+- executor.md: убран шаг squash (git reset --soft), просто push после rebase
+- senior-executor.md: local merge теперь `git merge --squash` вместо `--no-ff`
+- run-analysts.sh: убрано создание milestone (теперь в orchestrator)
+- orchestrator.sh: создаёт milestone:analysts-done после run-analysts.sh
+
 ## [0.4.9] - 2026-01-26
 
 ### Added

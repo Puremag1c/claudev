@@ -74,25 +74,13 @@ if ! git rebase origin/main; then
 fi
 ```
 
-### 7. Squash и финальный commit
-
-```bash
-git reset --soft HEAD~1
-git commit -m "$(cat <<EOF
-$TASK_TITLE
-
-Task: $TASK_ID
-EOF
-)"
-```
-
-### 8. Push
+### 7. Push
 
 ```bash
 git push --force-with-lease -u origin "task/beads-$TASK_ID"
 ```
 
-### 9. Пометь готовность к ревью
+### 8. Пометь готовность к ревью
 
 ```bash
 bd update $TASK_ID --label=needs-review
