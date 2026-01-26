@@ -60,20 +60,19 @@ run_analyst() {
         return 0
     fi
 
-    # Run analyst with timeout
+    # Run analyst with timeout (with tool use enabled)
     local output_file="$LOGS_DIR/analyst-$analyst.log"
     local analyst_prompt
     analyst_prompt=$(cat "$agent_file" 2>/dev/null)
 
-    if ! timeout "$TASK_TIMEOUT" claude --model sonnet --print > "$output_file" 2>&1 <<EOF
-$analyst_prompt
+    local full_prompt="$analyst_prompt
 
 ---
 ANALYST: $analyst
 TRIGGER_TASK: $task_id
-PROJECT_ROOT: $PROJECT_DIR
-EOF
-    then
+PROJECT_ROOT: $PROJECT_DIR"
+
+    if ! timeout "$TASK_TIMEOUT" claude --model sonnet -p "$full_prompt" > "$output_file" 2>&1; then
         local exit_code=$?
         if [ $exit_code -eq 124 ]; then
             log "WARN" "Analyst $analyst timeout"

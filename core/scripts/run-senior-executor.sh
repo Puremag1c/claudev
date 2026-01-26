@@ -59,19 +59,18 @@ Review the code, check for issues, and either approve or request changes.
 If approved, mark the task as complete with bd close."
     fi
 
-    # Run senior executor
+    # Run senior executor (with tool use enabled)
     local output_file="$LOGS_DIR/senior-executor-$task_id.log"
 
-    if timeout "$TASK_TIMEOUT" claude --model sonnet --print > "$output_file" 2>&1 <<EOF
-$agent_prompt
+    local full_prompt="$agent_prompt
 
 ---
 TASK_ID: $task_id
 TASK: $task_json
 PROJECT_ROOT: $PROJECT_DIR
-ACTION: Review and merge if ready
-EOF
-    then
+ACTION: Review and merge if ready"
+
+    if timeout "$TASK_TIMEOUT" claude --model opus -p "$full_prompt" > "$output_file" 2>&1; then
         log "INFO" "Review completed for $task_id"
         # Remove needs-review label
         bd update "$task_id" --label="" 2>/dev/null || true

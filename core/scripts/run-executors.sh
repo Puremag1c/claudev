@@ -72,20 +72,19 @@ run_executor() {
 
     log "INFO" "Starting executor for $task_id ($model): $task_title"
 
-    # Run executor agent with timeout
+    # Run executor agent with timeout (with tool use enabled)
     local output_file="$LOGS_DIR/executor-$task_id.log"
     local executor_prompt
     executor_prompt=$(cat .claude/agents/executor.md 2>/dev/null || echo "# Executor agent not found")
 
-    if ! timeout "$TASK_TIMEOUT" claude --model "$model" --print > "$output_file" 2>&1 <<EOF
-$executor_prompt
+    local full_prompt="$executor_prompt
 
 ---
 TASK_ID: $task_id
 TASK: $task_json
-PROJECT_ROOT: $PROJECT_DIR
-EOF
-    then
+PROJECT_ROOT: $PROJECT_DIR"
+
+    if ! timeout "$TASK_TIMEOUT" claude --model "$model" -p "$full_prompt" > "$output_file" 2>&1; then
         local exit_code=$?
         if [ $exit_code -eq 124 ]; then
             log "WARN" "Executor timeout for $task_id"

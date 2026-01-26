@@ -7,17 +7,23 @@
 ```
 orchestrator.sh (bash loop с lock file)
     │
-    └─► Manager (Sonnet, stateless)
-            │
-            ├─► detect-phase.sh → определяет текущую фазу
-            │
-            └─► Запускает агентов по фазе:
-                ├─► Tech Writer (Opus) — собирает требования
-                ├─► Architect (Opus) — план, задачи, dependencies
-                ├─► Analysts (Sonnet × 5) — аудит плана
-                ├─► Executors (по задаче) — реализация в git ветках
-                └─► Senior Executor (Opus) — ревью, merge, релиз
+    ├─► detect-phase.sh → определяет текущую фазу
+    │
+    ├─► НАПРЯМУЮ вызывает по фазе:
+    │   ├─► INIT: Tech Writer (Opus, interactive)
+    │   ├─► PLANNING: Architect (Opus) — create_plan
+    │   ├─► HELPERS: run-analysts.sh → Analysts (Sonnet × 5)
+    │   ├─► PLAN_REVIEW: Architect (Opus) — plan_review
+    │   ├─► IMPLEMENTATION: run-executors.sh + run-senior-executor.sh
+    │   └─► FINAL_REVIEW: Architect (Opus) — final_review
+    │
+    └─► Manager (Sonnet) — ТОЛЬКО при проблемах:
+        ├─► Blocked tasks
+        ├─► Retry limit exceeded
+        └─► Эскалации
 ```
+
+**Ключевой принцип:** Bash вызывает bash (механика). LLM используется только для решений.
 
 ## Фазы проекта
 
@@ -38,9 +44,10 @@ INIT → PLANNING → HELPERS → PLAN_REVIEW → IMPLEMENTATION → FINAL_REVIE
 ## Агенты
 
 ### Manager (Sonnet)
-- **Роль:** Stateless координатор
-- **Задача:** Определить фазу, запустить нужного агента, выйти
-- **Не делает:** Не создаёт задачи, не пишет код
+- **Роль:** Problem Advisor (советник для проблем)
+- **Вызывается:** ТОЛЬКО при наличии blocked tasks или retry limit
+- **Задача:** Анализировать проблемы, давать рекомендации
+- **Не делает:** НЕ координирует фазы, НЕ запускает скрипты
 
 ### Tech Writer (Opus)
 - **Роль:** Сбор требований

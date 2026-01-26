@@ -226,43 +226,147 @@ PROJECT_ROOT: $PROJECT_DIR"; then
     fi
 }
 
-# === Run Manager agent ===
-# Manager is the coordinator - creates trigger tasks, runs scripts, manages transitions
+# === Run agent with MODE parameter (with tool use) ===
 
-run_manager() {
-    local phase=$1
+run_agent_with_mode() {
+    local agent_name=$1
+    local agent_file=$2
+    local model=$3
+    local mode=$4
+    local extra_context=${5:-""}
 
-    log "INFO" "Running Manager for phase: $phase"
+    log "INFO" "Running agent: $agent_name (mode: $mode, model: $model)"
 
-    local manager_file=".claude/agents/manager.md"
-    if [ ! -f "$manager_file" ]; then
-        log "ERROR" "manager.md not found"
+    if [ ! -f "$agent_file" ]; then
+        log "ERROR" "Agent file not found: $agent_file"
         return 1
     fi
 
-    local manager_prompt
-    manager_prompt=$(cat "$manager_file")
+    local agent_prompt
+    agent_prompt=$(cat "$agent_file")
 
-    local output_file="$LOGS_DIR/manager-$(date +%s).log"
+    local output_file="$LOGS_DIR/${agent_name}-$(date +%s).log"
 
-    if timeout "$TASK_TIMEOUT" claude --model sonnet --print > "$output_file" 2>&1 <<EOF
-$manager_prompt
+    # Run with tool use enabled (NO --print flag!)
+    # Claude Code can execute bd, git, and other commands
+    local full_prompt="$agent_prompt
 
 ---
-CURRENT_PHASE: $phase
+MODE: $mode
 PROJECT_ROOT: $PROJECT_DIR
-SPEC_EXISTS: $([ -f "SPEC.md" ] && echo "true" || echo "false")
-EOF
-    then
-        log "INFO" "Manager completed for phase $phase"
+$extra_context"
+
+    if timeout "$TASK_TIMEOUT" claude --model "$model" -p "$full_prompt" > "$output_file" 2>&1; then
+        log "INFO" "Agent $agent_name completed (mode: $mode)"
         return 0
     else
-        log "WARN" "Manager failed or timed out for phase $phase"
+        log "WARN" "Agent $agent_name failed or timed out (mode: $mode)"
         return 1
     fi
 }
 
+# === Create analyst trigger tasks ===
+
+create_analyst_triggers() {
+    local analysts=("ux" "security" "ops" "reliability" "architecture")
+
+    for analyst in "${analysts[@]}"; do
+        local trigger_title="run-analyst-$analyst"
+        if ! bd list --format=json 2>/dev/null | jq -e ".[] | select(.title == \"$trigger_title\")" > /dev/null 2>&1; then
+            bd create --title="$trigger_title" --type=task --priority=1 2>/dev/null || true
+            log "INFO" "Created trigger: $trigger_title"
+        fi
+    done
+}
+
+# === Check and create done milestone after final_review ===
+
+check_and_create_done_milestone() {
+    # Check if architect output contains PASSED
+    local latest_log
+    latest_log=$(ls -t "$LOGS_DIR"/architect-*.log 2>/dev/null | head -1)
+
+    if [ -n "$latest_log" ] && grep -q "FINAL_REVIEW: PASSED" "$latest_log" 2>/dev/null; then
+        log "INFO" "Final review passed, creating project-done milestone"
+        bd create --title="Project complete" --type=task --label=milestone:project-done 2>/dev/null || true
+        local milestone_id
+        milestone_id=$(bd list --format=json 2>/dev/null | jq -r '.[] | select(.labels[]? == "milestone:project-done") | .id' | head -1)
+        if [ -n "$milestone_id" ]; then
+            bd close "$milestone_id" --reason="Final review passed" 2>/dev/null || true
+        fi
+    fi
+}
+
+# === Check for problems and consult Manager ===
+# Manager is called ONLY for problem resolution, not for phase coordination
+
+check_problems_and_consult_manager() {
+    # Count blocked tasks
+    local blocked_count
+    blocked_count=$(bd list --format=json 2>/dev/null | jq '[.[] | select(.labels[]? | startswith("blocked:"))] | length' 2>/dev/null || echo "0")
+
+    # Count tasks at retry limit
+    local retry_limit_count
+    retry_limit_count=$(bd list --format=json 2>/dev/null | jq "[.[] | select(.labels[]? | test(\"^retry:[$RETRY_LIMIT-9]\"))] | length" 2>/dev/null || echo "0")
+
+    # If problems exist, consult Manager
+    if [ "$blocked_count" -gt 0 ] || [ "$retry_limit_count" -gt 0 ]; then
+        log "WARN" "Problems detected: blocked=$blocked_count, retry_limit=$retry_limit_count"
+        call_manager_for_problems "$blocked_count" "$retry_limit_count"
+    fi
+}
+
+# === Call Manager for problem resolution ===
+
+call_manager_for_problems() {
+    local blocked=$1
+    local retry_limit=$2
+
+    local manager_file=".claude/agents/manager.md"
+    if [ ! -f "$manager_file" ]; then
+        log "WARN" "manager.md not found, skipping problem resolution"
+        return 0
+    fi
+
+    log "INFO" "Consulting Manager for problem resolution..."
+
+    local manager_prompt
+    manager_prompt=$(cat "$manager_file")
+
+    # Get problem details
+    local blocked_tasks
+    blocked_tasks=$(bd list --format=json 2>/dev/null | jq -r '.[] | select(.labels[]? | startswith("blocked:")) | "\(.id): \(.title)"' 2>/dev/null || echo "none")
+
+    local retry_tasks
+    retry_tasks=$(bd list --format=json 2>/dev/null | jq -r ".[] | select(.labels[]? | test(\"^retry:[$RETRY_LIMIT-9]\")) | \"\(.id): \(.title)\"" 2>/dev/null || echo "none")
+
+    local output_file="$LOGS_DIR/manager-problems-$(date +%s).log"
+
+    # Manager with tool use — resolves problems autonomously
+    local full_prompt="$manager_prompt
+
+---
+PROBLEM_RESOLUTION_MODE: true
+PROJECT_ROOT: $PROJECT_DIR
+
+BLOCKED_TASKS ($blocked):
+$blocked_tasks
+
+RETRY_LIMIT_TASKS ($retry_limit):
+$retry_tasks
+
+Разреши проблемы автономно:
+1. Для blocked — проверь зависимости, разблокируй если dependency closed
+2. Для retry limit — эскалируй к Architect (создай задачу) или закрой как невозможную"
+
+    timeout "$TASK_TIMEOUT" claude --model sonnet -p "$full_prompt" > "$output_file" 2>&1 || true
+
+    log "INFO" "Manager problem resolution complete (see $output_file)"
+}
+
 # === Phase dispatcher ===
+# Orchestrator DIRECTLY calls scripts/agents by phase.
+# Manager is called ONLY for problem resolution (blocked, retry limit, escalations).
 
 dispatch_phase() {
     local phase=$1
@@ -270,13 +374,53 @@ dispatch_phase() {
     case $phase in
         INIT)
             # Tech Writer creates SPEC.md (INTERACTIVE - needs user dialogue)
-            # This is the ONLY phase that runs interactively
             if [ -f ".claude/agents/tech-writer.md" ]; then
-                log "INFO" "INIT phase requires user input. Starting Tech Writer..."
+                log "INFO" "INIT: Starting Tech Writer (interactive)..."
                 run_interactive_agent "tech-writer" ".claude/agents/tech-writer.md" "opus"
             else
                 log "WARN" "tech-writer.md not found, skipping INIT"
             fi
+            ;;
+
+        PLANNING)
+            # Architect creates plan from SPEC.md
+            log "INFO" "PLANNING: Starting Architect to create plan..."
+            local spec_content
+            spec_content=$(cat SPEC.md 2>/dev/null || echo "SPEC.md not found")
+            run_agent_with_mode "architect" ".claude/agents/architect.md" "opus" "create_plan" "SPEC:
+$spec_content"
+            ;;
+
+        HELPERS)
+            # Create trigger tasks for analysts (if not exist), then run them
+            log "INFO" "HELPERS: Creating analyst triggers and running analysts..."
+            create_analyst_triggers
+            ./scripts/run-analysts.sh
+            ;;
+
+        PLAN_REVIEW)
+            # Architect reviews additions from Analysts
+            log "INFO" "PLAN_REVIEW: Starting Architect to review plan..."
+            # Create trigger task if not exists
+            if ! bd list --format=json 2>/dev/null | jq -e '.[] | select(.title == "run-plan-review")' > /dev/null 2>&1; then
+                bd create --title="run-plan-review" --type=task --priority=0 2>/dev/null || true
+            fi
+            run_agent_with_mode "architect" ".claude/agents/architect.md" "opus" "plan_review" ""
+            ;;
+
+        IMPLEMENTATION)
+            # Run executors for open tasks, senior executor for reviews
+            log "INFO" "IMPLEMENTATION: Running executors..."
+            ./scripts/run-executors.sh
+            ./scripts/run-senior-executor.sh
+            ;;
+
+        FINAL_REVIEW)
+            # Architect does final review and versioning
+            log "INFO" "FINAL_REVIEW: Starting Architect for final review..."
+            run_agent_with_mode "architect" ".claude/agents/architect.md" "opus" "final_review" ""
+            # Check if architect created project-done milestone
+            check_and_create_done_milestone
             ;;
 
         DONE)
@@ -285,11 +429,12 @@ dispatch_phase() {
             ;;
 
         *)
-            # All other phases: delegate to Manager agent
-            # Manager creates trigger tasks, runs scripts, handles transitions
-            run_manager "$phase"
+            log "WARN" "Unknown phase: $phase"
             ;;
     esac
+
+    # After phase actions, check for problems and call Manager if needed
+    check_problems_and_consult_manager
 }
 
 # === Main loop ===

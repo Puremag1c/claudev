@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.4.4] - 2026-01-26
+
+### Fixed
+- **P0 CRITICAL**: orchestrator теперь НАПРЯМУЮ вызывает скрипты по фазам (bash вызывает bash)
+- **P0 CRITICAL**: Все агенты теперь с tool use (`-p` вместо `--print`)
+  - `--print` отключал Bash tool — агенты не могли выполнять `bd create`, `git commit`
+  - Теперь: `claude --model $model -p "$prompt"` — полный доступ к tools
+- Исправлено в: orchestrator.sh, run-analysts.sh, run-executors.sh, run-senior-executor.sh
+- Manager теперь тоже с tool use — автономно разрешает проблемы
+
+### Changed
+- **Архитектура разделена на два уровня:**
+  - Механика (bash): orchestrator напрямую вызывает run-analysts.sh, run-executors.sh, агентов
+  - Решения (LLM): Manager вызывается при проблемах и САМ их разрешает
+- dispatch_phase() теперь содержит прямые вызовы для каждой фазы
+- manager.md: переписан как "Problem Resolver" — выполняет команды, не даёт рекомендации
+
+### Added
+- `run_agent_with_mode()` — запуск агента с MODE параметром
+- `create_analyst_triggers()` — создание trigger tasks для analysts
+- `check_and_create_done_milestone()` — проверка FINAL_REVIEW: PASSED
+- `check_problems_and_consult_manager()` — вызов Manager при проблемах
+- `call_manager_for_problems()` — передача контекста проблем Manager'у
+
 ## [0.4.3] - 2026-01-26
 
 ### Fixed
