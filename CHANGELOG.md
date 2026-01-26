@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.9] - 2026-01-26
+
+### Added
+- **Stats generation**: отчёт `stats/iteration-*.md` с метриками итерации (задачи, агенты, токены)
+- **Draft TTL check**: SPEC.draft.md старше 24h автоматически архивируется, начинается заново
+
+### Changed
+- orchestrator.sh: генерирует stats при завершении итерации (фаза DONE)
+- orchestrator.sh: проверяет возраст draft перед INIT фазой
+
 ## [0.4.6] - 2026-01-26
 
 ### Fixed
