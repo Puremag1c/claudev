@@ -69,7 +69,7 @@ if ! git rebase origin/main; then
         --type=task --priority=0 --assignee=architect \
         --notes="Branch: task/beads-$TASK_ID, conflicts with main"
 
-    bd update $TASK_ID --status=open --label=needs-rebase
+    bd update $TASK_ID --status=open --add-label=needs-rebase
     exit 0
 fi
 ```
@@ -83,7 +83,7 @@ git push --force-with-lease -u origin "task/beads-$TASK_ID"
 ### 8. Пометь готовность к ревью
 
 ```bash
-bd update $TASK_ID --label=needs-review
+bd update $TASK_ID --add-label=needs-review
 ```
 
 ## Обработка ошибок

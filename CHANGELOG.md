@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.12] - 2026-01-26
+
+### Fixed
+- **P0 CRITICAL**: `bd update --label=X` не существует в beads CLI — заменено на `--add-label=X`
+  - run-executors.sh: executor claim и retry labels
+  - executor.md: needs-rebase, needs-review labels
+  - senior-executor.md: reviewing label
+  - manager.md: blocked/escalation labels
+  - architect.md: blocked:escalation-limit label
+  - PROJECT.md: примеры в документации
+
+### Changed
+- manager.md: `--label=X --label=Y` заменено на `--labels=X,Y` для bd create
+- manager.md: `--label=-retry:*` заменено на `--set-labels=` для сброса labels
+
 ## [0.4.11] - 2026-01-26
 
 ### Fixed

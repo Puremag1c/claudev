@@ -293,6 +293,6 @@ labels:
 Если задача эскалировалась 2 раза — пометь как blocked:
 
 ```bash
-bd update $TASK_ID --label=blocked:escalation-limit \
+bd update $TASK_ID --add-label=blocked:escalation-limit \
   --notes="Escalation limit reached. History: ..."
 ```

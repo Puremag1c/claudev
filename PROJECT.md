@@ -1103,7 +1103,7 @@ if ! git rebase origin/main; then
         --type=task --priority=0 --assignee=architect \
         --notes="Branch: task/beads-$TASK_ID, conflicts with main"
 
-    bd update "$TASK_ID" --status=blocked --label=needs-rebase
+    bd update "$TASK_ID" --status=blocked --add-label=needs-rebase
     exit 0
 fi
 
@@ -1112,7 +1112,7 @@ git reset --soft HEAD~1
 git commit -m "$COMMIT_MESSAGE"
 git push --force-with-lease -u origin "task/beads-$TASK_ID"
 
-bd update "$TASK_ID" --label=needs-review
+bd update "$TASK_ID" --add-label=needs-review
 ```
 
 **Чеклист:**
@@ -1380,7 +1380,7 @@ EOF
 **Workflow:**
 ```bash
 # Executor при первой попытке:
-bd update $TASK_ID --status=in_progress --label=retry:0
+bd update $TASK_ID --status=in_progress --add-label=retry:0
 
 # Orchestrator при retry:
 CURRENT_RETRY=$(bd show $TASK_ID --format=json | jq -r '.labels[] | select(startswith("retry:")) | split(":")[1]')
@@ -1390,10 +1390,10 @@ if [ "$NEW_RETRY" -ge "$RETRY_LIMIT" ]; then
     # Эскалация к Architect
     bd create --title="Escalation: $TASK_TITLE failed after $RETRY_LIMIT retries" \
         --type=task --priority=0 --assignee=architect
-    bd update $TASK_ID --label=blocked:escalation-limit
+    bd update $TASK_ID --add-label=blocked:escalation-limit
 else
     # Retry
-    bd update $TASK_ID --status=open --label=retry:$NEW_RETRY
+    bd update $TASK_ID --status=open --add-label=retry:$NEW_RETRY
 fi
 ```
 

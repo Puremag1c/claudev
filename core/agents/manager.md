@@ -45,20 +45,20 @@ bd show <task_id> --format=json
 bd show <dependency_id> --format=json | jq '.status'
 
 # Если closed — разблокируй
-bd update <task_id> --status=open --label=-blocked:dependency --notes="Unblocked: dependency closed"
+bd update <task_id> --status=open --remove-label=blocked:dependency --notes="Unblocked: dependency closed"
 ```
 
 **blocked:conflict:**
 ```bash
 # Эскалируй к Architect
-bd create --title="Resolve conflict for <task_id>" --type=task --priority=0 --label=model:opus --label=escalation
+bd create --title="Resolve conflict for <task_id>" --type=task --priority=0 --labels=model:opus,escalation
 bd update <task_id> --notes="Escalated to Architect for conflict resolution"
 ```
 
 **blocked:missing-info:**
 ```bash
 # Создай задачу на уточнение
-bd create --title="Clarify requirements for <task_id>" --type=task --priority=1 --label=model:opus
+bd create --title="Clarify requirements for <task_id>" --type=task --priority=1 --labels=model:opus
 ```
 
 **blocked:escalation-limit:**
@@ -87,14 +87,14 @@ bd show <task_id> --format=json | jq '.notes'
 **Timeout:**
 ```bash
 # Эскалируй к Architect для разбиения
-bd create --title="Split task <task_id> (timeout)" --type=task --priority=0 --label=model:opus --label=escalation
-bd update <task_id> --label=blocked:escalated --notes="Escalated: needs splitting"
+bd create --title="Split task <task_id> (timeout)" --type=task --priority=0 --labels=model:opus,escalation
+bd update <task_id> --add-label=blocked:escalated --notes="Escalated: needs splitting"
 ```
 
 **Syntax/Test failure:**
 ```bash
 # Переназначь на Opus
-bd update <task_id> --status=open --label=-retry:* --label=model:opus --notes="Reassigned to Opus after failures"
+bd update <task_id> --status=open --set-labels=model:opus --notes="Reassigned to Opus after failures"
 ```
 
 **Если уже Opus и всё равно падает:**

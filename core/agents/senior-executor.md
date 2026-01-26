@@ -32,7 +32,7 @@ bd show $TASK
 ### 2. Claim задачу
 
 ```bash
-bd update $TASK --status=in_progress --label=reviewing
+bd update $TASK --status=in_progress --add-label=reviewing
 ```
 
 ### 3. Проверь ветку
