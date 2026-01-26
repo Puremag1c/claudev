@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.4.3] - 2026-01-26
+
+### Fixed
+- **P0 CRITICAL**: Trigger tasks для analysts теперь создаются (Manager вызывается для всех фаз кроме INIT/DONE)
+- **P0 CRITICAL**: Trigger task run-plan-review теперь создаётся Manager'ом
+- **P0 CRITICAL**: milestone:project-done теперь создаётся в FINAL_REVIEW
+- run_interactive_agent передаёт содержимое файла через --system-prompt (не путь)
+
+### Changed
+- orchestrator.sh: dispatch_phase() теперь делегирует Manager'у для всех фаз кроме INIT и DONE
+- manager.md: переписан под получение CURRENT_PHASE из контекста orchestrator
+- Архитектура: orchestrator определяет фазу → вызывает Manager → Manager выполняет действия
+
 ## [0.4.2] - 2026-01-26
 
 ### Fixed

@@ -207,13 +207,57 @@ run_interactive_agent() {
         return 1
     fi
 
-    # Интерактивный режим: Claude читает инструкции из файла и ведёт диалог
+    # Read agent prompt from file
+    local agent_prompt
+    agent_prompt=$(cat "$agent_file")
+
+    # Интерактивный режим: передаём содержимое промпта как системную инструкцию
     # Без --print, без timeout, без перенаправления в файл
-    if claude --model "$model" "You are $agent_name. Read and follow instructions in $agent_file. PROJECT_ROOT: $PROJECT_DIR"; then
+    # Используем --system-prompt для инструкций агента
+    if claude --model "$model" --system-prompt "$agent_prompt
+
+---
+PROJECT_ROOT: $PROJECT_DIR"; then
         log "INFO" "Interactive agent $agent_name completed"
         return 0
     else
         log "WARN" "Interactive agent $agent_name exited with error"
+        return 1
+    fi
+}
+
+# === Run Manager agent ===
+# Manager is the coordinator - creates trigger tasks, runs scripts, manages transitions
+
+run_manager() {
+    local phase=$1
+
+    log "INFO" "Running Manager for phase: $phase"
+
+    local manager_file=".claude/agents/manager.md"
+    if [ ! -f "$manager_file" ]; then
+        log "ERROR" "manager.md not found"
+        return 1
+    fi
+
+    local manager_prompt
+    manager_prompt=$(cat "$manager_file")
+
+    local output_file="$LOGS_DIR/manager-$(date +%s).log"
+
+    if timeout "$TASK_TIMEOUT" claude --model sonnet --print > "$output_file" 2>&1 <<EOF
+$manager_prompt
+
+---
+CURRENT_PHASE: $phase
+PROJECT_ROOT: $PROJECT_DIR
+SPEC_EXISTS: $([ -f "SPEC.md" ] && echo "true" || echo "false")
+EOF
+    then
+        log "INFO" "Manager completed for phase $phase"
+        return 0
+    else
+        log "WARN" "Manager failed or timed out for phase $phase"
         return 1
     fi
 }
@@ -226,49 +270,12 @@ dispatch_phase() {
     case $phase in
         INIT)
             # Tech Writer creates SPEC.md (INTERACTIVE - needs user dialogue)
+            # This is the ONLY phase that runs interactively
             if [ -f ".claude/agents/tech-writer.md" ]; then
                 log "INFO" "INIT phase requires user input. Starting Tech Writer..."
                 run_interactive_agent "tech-writer" ".claude/agents/tech-writer.md" "opus"
             else
                 log "WARN" "tech-writer.md not found, skipping INIT"
-            fi
-            ;;
-
-        PLANNING)
-            # Architect creates implementation plan
-            if [ -f ".claude/agents/architect.md" ]; then
-                run_agent "architect" ".claude/agents/architect.md" "MODE: create_plan"
-            else
-                log "WARN" "architect.md not found, skipping PLANNING"
-            fi
-            ;;
-
-        HELPERS)
-            # Run all analysts in parallel
-            ./scripts/run-analysts.sh 2>/dev/null || log "WARN" "run-analysts.sh failed"
-            ;;
-
-        PLAN_REVIEW)
-            # Architect reviews plan after analysts
-            if [ -f ".claude/agents/architect.md" ]; then
-                run_agent "architect" ".claude/agents/architect.md" "MODE: plan_review"
-            else
-                log "WARN" "architect.md not found, skipping PLAN_REVIEW"
-            fi
-            ;;
-
-        IMPLEMENTATION)
-            # Run executors (parallel) then senior executor (sequential)
-            ./scripts/run-executors.sh 2>/dev/null || log "WARN" "run-executors.sh failed"
-            ./scripts/run-senior-executor.sh 2>/dev/null || true
-            ;;
-
-        FINAL_REVIEW)
-            # Architect does final review
-            if [ -f ".claude/agents/architect.md" ]; then
-                run_agent "architect" ".claude/agents/architect.md" "MODE: final_review"
-            else
-                log "WARN" "architect.md not found, skipping FINAL_REVIEW"
             fi
             ;;
 
@@ -278,7 +285,9 @@ dispatch_phase() {
             ;;
 
         *)
-            log "WARN" "Unknown phase: $phase"
+            # All other phases: delegate to Manager agent
+            # Manager creates trigger tasks, runs scripts, handles transitions
+            run_manager "$phase"
             ;;
     esac
 }
