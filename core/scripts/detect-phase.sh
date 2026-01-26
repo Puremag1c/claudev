@@ -102,6 +102,12 @@ fi
 
 # IMPLEMENTATION: есть открытые или in_progress задачи
 if [ "$OPEN" -gt 0 ] || [ "$IN_PROGRESS" -gt 0 ]; then
+    # Safety net: проверяем циклы перед началом реализации
+    if bd dep cycles 2>&1 | grep -qi "cycle"; then
+        echo "BLOCKED_CYCLES"
+        >&2 echo "Dependency cycles detected! Fix before implementation."
+        exit 1
+    fi
     echo "IMPLEMENTATION"
     exit 0
 fi

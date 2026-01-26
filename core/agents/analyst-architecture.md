@@ -15,6 +15,11 @@ model: sonnet
 3. НЕ расставляй dependencies (это делает Architect)
 4. После работы закрой свою trigger-задачу
 
+## Контекст (используй эти переменные)
+
+- `TRIGGER_TASK` — ID твоей триггер-задачи (закрой её в конце)
+- `PROJECT_ROOT` — корень проекта
+
 ## Твой фокус
 
 - Separation of concerns
@@ -38,17 +43,29 @@ bd list --format=json | jq '.[] | {id, title, description, labels}'
 
 ```bash
 # Найди tasks без model: label (это ошибка Architect!)
-missing_model=$(bd list --format=json | jq -r '.[] | select(.type == "task") | select(.labels | map(startswith("model:")) | any | not) | select(.title | test("^run-|^milestone:") | not) | "\(.id): \(.title)"')
+# Проверяем каждую задачу отдельно для простоты
+missing_model=""
+for task_id in $(bd list --format=json | jq -r '.[] | select(.type == "task") | .id'); do
+    task_json=$(bd show "$task_id" --format=json)
+    title=$(echo "$task_json" | jq -r '.title')
+
+    # Пропускаем служебные задачи
+    if echo "$title" | grep -qE "^run-|^milestone:"; then
+        continue
+    fi
+
+    # Проверяем наличие model: label
+    if ! echo "$task_json" | jq -e '.labels[]? | startswith("model:")' >/dev/null 2>&1; then
+        missing_model="$missing_model\n$task_id: $title"
+    fi
+done
 
 if [ -n "$missing_model" ]; then
     echo "ERROR: Tasks without model: label detected!"
-    echo "$missing_model"
-    # Создай задачу на исправление
-    bd create --title="[Architecture] Fix: Add missing model: labels to tasks" --type=task --priority=0 \
+    echo -e "$missing_model"
+    bd create --title="[Architecture] Fix: Add missing model: labels" --type=task --priority=0 \
       --label=added-by:analyst-architecture --label=model:opus \
-      --description="Tasks without model: label will not be executed!
-Missing: $missing_model
-Fix: Add model:haiku/sonnet/opus to each task"
+      --description="Tasks without model: label will not be executed! Fix: Add model:haiku/sonnet/opus to each task"
 fi
 ```
 

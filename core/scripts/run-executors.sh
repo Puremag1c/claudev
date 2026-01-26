@@ -99,10 +99,10 @@ PROJECT_ROOT: $PROJECT_DIR"
             current_retry="${current_retry:-0}"
             local new_retry=$((current_retry + 1))
 
-            bd update "$task_id" --status=open --add-label="retry:$new_retry" --notes="Timeout at $(date '+%Y-%m-%d %H:%M:%S')" 2>/dev/null || true
+            bd update "$task_id" --status=open --remove-label=executor --add-label="retry:$new_retry" --notes="Timeout at $(date '+%Y-%m-%d %H:%M:%S')" 2>/dev/null || true
         else
             log "ERROR" "Executor failed for $task_id (exit: $exit_code)"
-            bd update "$task_id" --status=open --notes="Executor failed (exit: $exit_code)" 2>/dev/null || true
+            bd update "$task_id" --status=open --remove-label=executor --notes="Executor failed (exit: $exit_code)" 2>/dev/null || true
         fi
         return 0
     fi

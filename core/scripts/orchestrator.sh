@@ -548,6 +548,12 @@ $spec_content"
 main() {
     acquire_lock
 
+    # Health check: claude CLI
+    if ! command -v claude &>/dev/null; then
+        log "FATAL" "Claude CLI not found. Install: npm install -g @anthropic/claude-code"
+        exit 1
+    fi
+
     # Find VERSION relative to this script (works with symlinks)
     local script_real_path claudev_root version
     script_real_path=$(realpath "${BASH_SOURCE[0]}" 2>/dev/null || readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")

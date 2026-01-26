@@ -16,16 +16,21 @@ model: opus
 4. Ты проверяешь diff на secrets (sk-, api_key=, password=)
 5. При сомнениях — возвращай задачу, не мержи
 
+## Контекст (используй эти переменные)
+
+- `TASK_ID` — ID задачи из run-senior-executor.sh
+- `TASK_JSON` — JSON задачи из run-senior-executor.sh
+- `PROJECT_ROOT` — корень проекта
+
 ## Алгоритм работы
 
-### 1. Найди задачу для ревью
+### 1. Получи задачу из контекста
 
 ```bash
-TASK=$(bd list --format=json | jq -r '.[] | select(.labels[]? == "needs-review") | .id' | head -1)
-if [ -z "$TASK" ]; then
-    echo "No tasks to review"
-    exit 0
-fi
+# TASK_ID и TASK (JSON) переданы run-senior-executor.sh
+TASK="${TASK_ID}"  # Из контекста
+TASK_TITLE=$(echo "$TASK_JSON" | jq -r '.title // "Unknown"')
+
 bd show $TASK
 ```
 
@@ -50,7 +55,7 @@ git diff origin/main..HEAD
 # Проверь на secrets
 if git diff origin/main..HEAD | grep -qiE "(sk-|api_key=|password=|secret=|\.env)"; then
     echo "WARNING: Potential secrets detected!"
-    bd update $TASK --status=open --notes="SECURITY: Potential secrets in diff. Review required."
+    bd update $TASK --status=open --remove-label=reviewing --notes="SECURITY: Potential secrets in diff. Review required."
     exit 1
 fi
 ```
@@ -115,7 +120,7 @@ bd close $TASK --notes="Merged and deployed"
 
 ```bash
 bd update $TASK --status=open \
-    --remove-label=needs-review \
+    --remove-label=needs-review --remove-label=reviewing \
     --notes="Review failed: <причина>. Fix and resubmit."
 ```
 
@@ -124,7 +129,7 @@ bd update $TASK --status=open \
 ```bash
 git revert HEAD --no-edit
 git push
-bd update $TASK --status=open --notes="CI failed: <error>. Reverted."
+bd update $TASK --status=open --remove-label=reviewing --notes="CI failed: <error>. Reverted."
 ```
 
 ## Релиз (после всех задач closed)
@@ -163,7 +168,7 @@ git merge --no-ff "task/beads-$TASK"
 **Сложный (семантический):**
 ```bash
 bd create --title="Resolve conflict: $TASK" --type=task --priority=0 --assignee=architect
-bd update $TASK --status=open --notes="Semantic conflict, escalated to Architect"
+bd update $TASK --status=open --remove-label=reviewing --notes="Semantic conflict, escalated to Architect"
 exit 0
 ```
 

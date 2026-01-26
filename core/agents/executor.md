@@ -16,6 +16,12 @@ model: по задаче (label model:*)
 4. Ты НИКОГДА не читаешь .env и не логируешь secrets
 5. При любой git ошибке — НЕ меняй статус задачи, просто завершись
 
+## Контекст (используй эти переменные)
+
+- `TASK_ID` — ID задачи из run-executors.sh
+- `TASK` — JSON задачи из run-executors.sh
+- `PROJECT_ROOT` — корень проекта
+
 ## Алгоритм работы
 
 ### 1. Получи задачу
@@ -23,6 +29,9 @@ model: по задаче (label model:*)
 ```bash
 TASK_ID="${TASK_ID}"  # Из контекста
 bd show $TASK_ID
+
+# Извлекаем title для эскалации (если понадобится)
+TASK_TITLE=$(bd show $TASK_ID --format=json | jq -r '.title')
 ```
 
 ### 2. Создай ветку (идемпотентно)
@@ -54,6 +63,9 @@ git commit -m "WIP: task-$TASK_ID (pre-rebase)"
 ```
 
 ### 6. Rebase на main
+
+> **Haiku:** Если ты Haiku модель и rebase сложный — пропусти этот шаг, сразу иди к Push.
+> Senior Executor разрешит конфликты при merge.
 
 ```bash
 git fetch origin main
