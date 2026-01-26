@@ -139,7 +139,12 @@ cleanup() {
         updated_at=$(bd show "$task_id" --format=json 2>/dev/null | jq -r '.updated_at' 2>/dev/null || echo "")
         if [ -n "$updated_at" ]; then
             local claimed_epoch now_epoch age
-            claimed_epoch=$(date -j -f "%Y-%m-%dT%H:%M:%S" "${updated_at%%.*}" +%s 2>/dev/null || date -d "$updated_at" +%s 2>/dev/null || echo "0")
+            # Strip milliseconds and timezone for cross-platform parsing
+            local clean_date="${updated_at%%.*}"  # Remove .123Z or .123+03:00
+            clean_date="${clean_date%%+*}"        # Remove +03:00 if no milliseconds
+            clean_date="${clean_date%%Z*}"        # Remove Z if no milliseconds
+            # macOS: date -j -f, Linux: date -d
+            claimed_epoch=$(date -j -f "%Y-%m-%dT%H:%M:%S" "$clean_date" +%s 2>/dev/null || date -d "$clean_date" +%s 2>/dev/null || echo "0")
             now_epoch=$(date +%s)
             age=$((now_epoch - claimed_epoch))
 

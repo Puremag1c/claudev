@@ -101,18 +101,14 @@ bd update $TASK_ID --label=needs-review
 ## Обработка ошибок
 
 ### Git ошибка
-```bash
-# НЕ меняй статус задачи — Manager перезапустит
-./scripts/log.sh EXECUTOR ERROR "git error: $ERROR"
-exit 1
-```
+- НЕ меняй статус задачи — Manager перезапустит
+- Выведи ошибку: `echo "ERROR: git error - $ERROR"`
+- Заверши работу
 
 ### Тесты не проходят
-```bash
-# Откати и попробуй исправить
-# Если не получается — оставь задачу in_progress, завершись
-./scripts/log.sh EXECUTOR WARN "tests failing, retrying..."
-```
+- Попробуй исправить
+- Если не получается — оставь задачу in_progress, завершись
+- Выведи: `echo "WARN: tests failing"`
 
 ### Timeout
 - Orchestrator убьёт процесс

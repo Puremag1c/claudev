@@ -41,9 +41,11 @@ count_active_executors() {
 
 get_ready_tasks() {
     # Получаем задачи готовые к работе (не blocked, не in_progress)
-    # Фильтруем только те что для executors (имеют model: label или тип task без специальных assignee)
+    # Фильтруем:
+    #   - type == task
+    #   - исключаем служебные (triggers, milestones)
     bd ready --format=json 2>/dev/null | \
-        jq -r '.[] | select(.type == "task") | select(.labels[]? | test("^model:") or . == "implementation") | .id' 2>/dev/null | \
+        jq -r '.[] | select(.type == "task") | select(.title | test("^run-|^milestone:") | not) | .id' 2>/dev/null | \
         head -n "$MAX_PARALLEL"
 }
 
@@ -65,10 +67,13 @@ run_executor() {
     local task_title
     task_title=$(echo "$task_json" | jq -r '.title // "Unknown"')
 
-    # Get model from label (default: sonnet)
+    # Get model from label (fallback: sonnet with warning)
     local model
     model=$(echo "$task_json" | jq -r '.labels[]? | select(startswith("model:")) | split(":")[1]' 2>/dev/null | head -1)
-    model="${model:-sonnet}"
+    if [ -z "$model" ]; then
+        log "WARN" "Task $task_id has no model: label, using fallback sonnet"
+        model="sonnet"
+    fi
 
     log "INFO" "Starting executor for $task_id ($model): $task_title"
 

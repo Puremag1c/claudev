@@ -51,12 +51,12 @@ cat SPEC.md
 
 ```bash
 bd create --title="Setup project structure" --type=task --priority=1 \
-  --label=model:haiku --label=implementation \
+  --label=model:haiku \
   --description="files: package.json, tsconfig.json
 done_when: npm install succeeds"
 
 bd create --title="Implement user model" --type=task --priority=1 \
-  --label=model:sonnet --label=implementation \
+  --label=model:sonnet \
   --description="files: src/models/user.ts, src/models/user.test.ts
 done_when: tests pass"
 ```
@@ -282,7 +282,6 @@ description: |
   done_when: чёткий критерий
 labels:
   - model:sonnet
-  - implementation
 ```
 
 ## Лимит эскалаций

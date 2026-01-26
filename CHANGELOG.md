@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.6] - 2026-01-26
+
+### Fixed
+- **P2**: Кроссплатформенный date parsing в orchestrator.sh (macOS + Linux)
+- executor.md: убраны вызовы `./scripts/log.sh`, упрощены примеры ошибок
+
+### Changed
+- run-executors.sh: фильтр задач по title pattern вместо `implementation` label
+- run-executors.sh: добавлен warning в лог при fallback на sonnet (если нет `model:*` label)
+- architect.md: убран устаревший `--label=implementation` из примеров
+
+### Removed
+- `implementation` label больше не используется (избыточен, `model:*` достаточен)
+
 ## [0.4.5] - 2026-01-26
 
 ### Fixed
