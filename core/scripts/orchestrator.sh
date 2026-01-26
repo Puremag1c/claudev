@@ -163,7 +163,7 @@ detect_phase() {
     ./scripts/detect-phase.sh 2>/dev/null || echo "UNKNOWN"
 }
 
-# === Run agent with prompt ===
+# === Run agent with prompt (non-interactive, for background work) ===
 
 run_agent() {
     local agent_name=$1
@@ -193,6 +193,31 @@ EOF
     fi
 }
 
+# === Run agent interactively (for user dialogue) ===
+
+run_interactive_agent() {
+    local agent_name=$1
+    local agent_file=$2
+    local model=${3:-"opus"}
+
+    log "INFO" "Starting INTERACTIVE agent: $agent_name (user dialogue required)"
+
+    if [ ! -f "$agent_file" ]; then
+        log "ERROR" "Agent file not found: $agent_file"
+        return 1
+    fi
+
+    # Интерактивный режим: Claude читает инструкции из файла и ведёт диалог
+    # Без --print, без timeout, без перенаправления в файл
+    if claude --model "$model" "You are $agent_name. Read and follow instructions in $agent_file. PROJECT_ROOT: $PROJECT_DIR"; then
+        log "INFO" "Interactive agent $agent_name completed"
+        return 0
+    else
+        log "WARN" "Interactive agent $agent_name exited with error"
+        return 1
+    fi
+}
+
 # === Phase dispatcher ===
 
 dispatch_phase() {
@@ -200,9 +225,10 @@ dispatch_phase() {
 
     case $phase in
         INIT)
-            # Tech Writer creates SPEC.md
+            # Tech Writer creates SPEC.md (INTERACTIVE - needs user dialogue)
             if [ -f ".claude/agents/tech-writer.md" ]; then
-                run_agent "tech-writer" ".claude/agents/tech-writer.md"
+                log "INFO" "INIT phase requires user input. Starting Tech Writer..."
+                run_interactive_agent "tech-writer" ".claude/agents/tech-writer.md" "opus"
             else
                 log "WARN" "tech-writer.md not found, skipping INIT"
             fi

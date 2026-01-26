@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.2] - 2026-01-26
+
+### Fixed
+- **P0 CRITICAL**: Tech Writer теперь запускается интерактивно (без `--print`)
+- Фаза INIT требует диалога с пользователем — невозможно в non-interactive режиме
+
+### Added
+- `run_interactive_agent()` — новая функция для агентов требующих user input
+
 ## [0.4.1] - 2026-01-26
 
 ### Fixed
