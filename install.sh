@@ -268,6 +268,64 @@ else
     echo "  ✓ scripts -> $CLAUDEV_DIR_NAME/core/scripts"
 fi
 
+# === Claude Code permissions ===
+
+echo ""
+echo "Настраиваю разрешения Claude Code..."
+
+SETTINGS_FILE="$TARGET_DIR/.claude/settings.json"
+
+if [[ -f "$SETTINGS_FILE" ]]; then
+    echo "  - settings.json уже существует"
+else
+    cat > "$SETTINGS_FILE" << 'EOF'
+{
+  "permissions": {
+    "allow": [
+      "Bash(git *)",
+      "Bash(gh *)",
+      "Bash(bd *)",
+      "Bash(ls *)",
+      "Bash(tree *)",
+      "Bash(find *)",
+      "Bash(grep *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(sort *)",
+      "Bash(echo *)",
+      "Bash(mkdir *)",
+      "Bash(cp *)",
+      "Bash(mv *)",
+      "Bash(touch *)",
+      "Bash(chmod *)",
+      "Bash(timeout *)",
+      "Bash(./scripts/*)",
+      "Bash(bash *)",
+      "Bash(source *)",
+      "Bash(jq *)",
+      "Bash(date *)",
+      "Bash(stat *)",
+      "Bash(pkill *)",
+      "Bash(kill *)",
+      "Bash(sleep *)",
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(sudo rm -rf *)"
+    ]
+  }
+}
+EOF
+    echo "  ✓ .claude/settings.json создан (auto-allow git, gh, bd, scripts)"
+fi
+
 # === Копируем config ===
 
 echo ""
