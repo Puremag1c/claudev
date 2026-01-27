@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.4.21] - 2026-01-27
+
+### Fixed
+- **P1**: CHANGELOG — добавлена пропущенная запись v0.4.20
+
+### Improved
+- **P2**: orchestrator.sh — явная обработка BLOCKED_CYCLES (создаёт P0 задачу для Architect)
+- **P2**: PROJECT.md — обновлено решение #15 (squash перенесён на Senior Executor с v0.4.10)
+
+## [0.4.20] - 2026-01-26
+
+### Fixed
+- **P1**: executor.md — добавлен TASK_TITLE extraction перед использованием в эскалации
+- **P1**: senior-executor.md — убран дублирующий поиск задачи, TASK_ID берётся из контекста
+
+### Improved
+- **P2**: analyst-architecture.md — упрощена проверка model: labels (читаемый bash вместо сложного jq)
+- **P2**: Все агенты — добавлена секция "Контекст" с явными переменными (TASK_ID, TRIGGER_TASK, PROJECT_ROOT)
+- **P2**: executor.md — добавлена заметка для Haiku про пропуск rebase
+- **P2**: senior-executor.md — очистка reviewing label во всех exit paths
+- **P2**: detect-phase.sh — проверка циклов перед IMPLEMENTATION фазой
+
+### Minor
+- **P3**: tech-writer.md — уточнение что timeout это рекомендация
+- **P3**: orchestrator.sh — health check для claude CLI при старте
+- **P3**: run-executors.sh — удаление executor label при timeout/error
+
 ## [0.4.13] - 2026-01-26
 
 ### Fixed

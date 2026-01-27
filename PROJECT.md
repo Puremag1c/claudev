@@ -1075,25 +1075,28 @@ done
 
 ---
 
-### 15. Executor rebase — WIP commit для сохранности (FINAL)
+### 15. Executor rebase — WIP commit для сохранности (FINAL, updated v0.4.10)
 
 **Проблема:** Conflict → abort → вся работа потеряна (задачи маленькие, но гарантия не помешает)
 
-**Решение:** WIP commit перед rebase + squash в конце (clean history)
+**Решение:** WIP commit перед rebase. Squash делает Senior Executor при merge.
 
-**Workflow:**
+**Почему squash перенесён на Senior Executor (v0.4.10):**
+- Executor может быть Haiku — сложная git логика рискованна
+- Senior Executor всегда Opus — справится с squash merge
+- `git merge --squash` проще чем `reset --soft` + `commit`
+
+**Workflow (Executor):**
 ```bash
 # 1. WIP commit (сохраняем работу)
 git add -A
 git commit -m "WIP: task-$TASK_ID (pre-rebase)"
 
-# 2. Rebase
+# 2. Rebase (опционально для Haiku)
 git fetch origin main
 if ! git rebase origin/main; then
     # Conflict detected
     git rebase --abort
-
-    log "WARN" "Rebase conflict, escalating to Architect"
 
     # Работа сохранена в WIP commit, можно push
     git push --force-with-lease -u origin "task/beads-$TASK_ID"
@@ -1103,23 +1106,27 @@ if ! git rebase origin/main; then
         --type=task --priority=0 --assignee=architect \
         --notes="Branch: task/beads-$TASK_ID, conflicts with main"
 
-    bd update "$TASK_ID" --status=blocked --add-label=needs-rebase
+    bd update "$TASK_ID" --status=open --add-label=needs-rebase
     exit 0
 fi
 
-# 3. Squash WIP commit (clean history)
-git reset --soft HEAD~1
-git commit -m "$COMMIT_MESSAGE"
+# 3. Push (без squash — Senior Executor сделает при merge)
 git push --force-with-lease -u origin "task/beads-$TASK_ID"
-
 bd update "$TASK_ID" --add-label=needs-review
+```
+
+**Workflow (Senior Executor):**
+```bash
+# Squash merge — все WIP commits становятся одним
+git merge --squash "task/beads-$TASK_ID"
+git commit -m "$TASK_TITLE"
 ```
 
 **Чеклист:**
 - ✅ Работа НИКОГДА не теряется (WIP commit)
-- ✅ Clean history в итоге (squash перед push)
-- ✅ Architect получает ветку с работой
-- ✅ Не усложняет (~5 строк кода)
+- ✅ Clean history в итоге (squash при merge)
+- ✅ Haiku-friendly (rebase опционален)
+- ✅ Разделение ответственности (Executor кодит, Senior мержит)
 
 ---
 

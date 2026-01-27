@@ -534,6 +534,21 @@ $spec_content"
             return 0
             ;;
 
+        BLOCKED_CYCLES)
+            log "ERROR" "Dependency cycles detected! Cannot proceed to IMPLEMENTATION."
+            log "INFO" "Creating P0 task for Architect to fix cycles..."
+
+            # Create P0 task for Architect
+            if ! bd list --format=json 2>/dev/null | jq -e '.[] | select(.title == "Fix dependency cycles")' > /dev/null 2>&1; then
+                bd create --title="Fix dependency cycles" --type=task --priority=0 \
+                    --description="bd dep cycles detected circular dependencies. Fix before IMPLEMENTATION can proceed.
+
+Run: bd dep cycles
+Then: bd dep remove <task> <dep> for one edge in each cycle" \
+                    2>/dev/null || true
+            fi
+            ;;
+
         *)
             log "WARN" "Unknown phase: $phase"
             ;;
