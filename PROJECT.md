@@ -8,24 +8,65 @@
 
 ## Цель
 
-Система должна легко интегрироваться в любой проект через `git clone`.
+Система должна легко интегрироваться в любой проект через одну команду `claudev init`.
 
 ## Структура проекта
+
+### Репозиторий claudev (для разработки)
 
 ```
 claudev/
 ├── CLAUDE.md              # Персональный ассистент (переносится между проектами)
 ├── PROJECT.md             # ← Этот файл (контекст проекта)
+├── bin/
+│   └── claudev            # CLI wrapper (init, start, status, update)
 ├── core/                  # Ядро системы
 │   ├── agents/            # Шаблоны агентов (manager, architect, coder...)
 │   ├── commands/          # Slash-команды (/start, /status)
-│   └── scripts/           # Bash скрипты (orchestrator, claim-task...)
+│   └── scripts/           # Bash скрипты (orchestrator, init-project, detect-phase...)
 ├── templates/             # Шаблоны для целевого проекта
+│   ├── config.template.sh # Конфигурация
 │   ├── SPEC.template.md   # Шаблон спецификации
 │   └── CLAUDE.template.md # Шаблон CLAUDE.md для проекта
-├── install.sh             # Установщик в целевой проект
+├── install.sh             # Глобальная установка в ~/.claudev/
 └── docs/                  # Документация
     └── architecture.md    # Архитектура системы
+```
+
+### Глобальная установка (~/.claudev/)
+
+После `curl ... | bash` в домашней директории появляется:
+
+```
+~/.claudev/
+├── bin/
+│   └── claudev            # CLI (добавляется в PATH)
+├── core/
+│   ├── agents/            # Промпты агентов
+│   ├── scripts/           # orchestrator, detect-phase, etc.
+│   └── commands/          # Слэш-команды
+├── templates/
+│   ├── config.template.sh
+│   ├── SPEC.template.md
+│   └── CLAUDE.template.md
+└── VERSION
+```
+
+### Целевой проект (после `claudev init`)
+
+```
+target-project/
+├── .claudev/
+│   └── config.sh          # Конфигурация проекта
+├── .claude/
+│   ├── agents -> ~/.claudev/core/agents
+│   ├── commands -> ~/.claudev/core/commands
+│   └── settings.json      # Разрешения Claude Code
+├── scripts -> ~/.claudev/core/scripts
+├── logs/                  # Логи orchestrator
+├── stats/                 # Статистика итераций
+├── SPEC.md                # Спецификация (создаёт Tech Writer)
+└── .gitignore             # Обновлённый
 ```
 
 ## ВАЖНО: Работа с файлами агентов
@@ -36,25 +77,40 @@ claudev/
 
 ## Как система интегрируется в проект
 
-**One-liner установка:**
+### Шаг 1: Глобальная установка (один раз)
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Puremag1c/claudev/main/invite.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Puremag1c/claudev/main/install.sh | bash
 ```
 
-**Или вручную:**
-```bash
-git clone git@github.com:user/claudev.git .claudev
-.claudev/install.sh
+Это устанавливает:
+- claudev CLI в `~/.claudev/bin/` (добавляется в PATH)
+- Зависимости: beads, gh, jq, gitleaks (опционально)
+- Claude Code (если не установлен)
 
-# Результат:
-target-project/
-├── .claudev/              # Клонированное ядро
-├── .claude/               # Симлинки на agents и commands
-│   ├── agents -> ../.claudev/core/agents
-│   └── commands -> ../.claudev/core/commands
-├── scripts -> .claudev/core/scripts
-├── SPEC.md                # Спецификация проекта (заполняет пользователь)
-└── CLAUDE.md              # Project instructions
+### Шаг 2: Инициализация проекта
+
+```bash
+cd my-project
+claudev init
+```
+
+Это делает:
+1. Проверяет зависимости
+2. `git init` (если нужно)
+3. `bd init` (если нужно)
+4. Создаёт `.claudev/config.sh`
+5. Создаёт симлинки на глобальные agents/scripts
+6. Настраивает `.claude/settings.json` (разрешения)
+7. Обновляет `.gitignore`
+8. **Сразу запускает orchestrator**
+
+### Другие команды
+
+```bash
+claudev start    # Запустить orchestrator (если уже init)
+claudev status   # Статус проекта (фаза, задачи)
+claudev update   # Обновить claudev до последней версии
 ```
 
 ## Ключевые компоненты системы
@@ -185,9 +241,11 @@ CI/CD GitHub (опционально)
 
 ## Текущий статус
 
-**Статус:** РЕАЛИЗАЦИЯ ЗАВЕРШЕНА (24 января 2026)
+**Статус:** v0.5.5 ГОТОВ, v0.6 В РАЗРАБОТКЕ (27 января 2026)
 
-Все 52 задачи закрыты. Система готова к использованию.
+### v0.5.5 (текущий)
+
+Все 52 задачи закрыты. Ядро системы готово.
 
 **Реализовано:**
 - ✅ core/agents/ — 10 промптов агентов (Tech Writer, Manager, Architect, Executor, Senior Executor, 5 Analysts)
@@ -201,7 +259,24 @@ CI/CD GitHub (опционально)
 - ✅ Второе прохождение (24 января): 9 угроз → решения #21-#25
 - ✅ Все P0 блокеры закрыты (config validation, backpressure)
 
-**Следующий шаг:** Первый реальный запуск системы на тестовом проекте.
+### v0.6 (в разработке)
+
+**Цель:** Глобальная установка + `claudev init` в любом проекте.
+
+**Epic:** claudev-g9z — задачи в `bd list --status=open`
+
+**Ключевые изменения:**
+1. install.sh → глобальная установка в ~/.claudev/
+2. claudev CLI (init, start, status, update)
+3. Поддержка существующих проектов с кодом
+
+**Сценарии после `claudev init`:**
+
+| Тип проекта | Что происходит |
+|-------------|----------------|
+| Пустой | Tech Writer: "Что хотите создать?" |
+| Есть SPEC.md | Сразу к Architect |
+| Есть код | analyze-project.sh → PROJECT_CONTEXT.md → Tech Writer: "Вижу [стек], что добавить?" |
 
 **Обсуждено (22 января 2026):**
 - ✅ Tech Writer — Opus, сам пишет в beads, режимы (новый/итерация)
