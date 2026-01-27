@@ -106,7 +106,7 @@ if [ "$OPEN" -gt 0 ] || [ "$IN_PROGRESS" -gt 0 ]; then
     if bd dep cycles 2>&1 | grep -qi "cycle"; then
         echo "BLOCKED_CYCLES"
         >&2 echo "Dependency cycles detected! Fix before implementation."
-        exit 1
+        exit 0  # exit 0 чтобы orchestrator не добавил "UNKNOWN"
     fi
     echo "IMPLEMENTATION"
     exit 0
