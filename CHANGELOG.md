@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.5] - 2026-01-27
+
+### Added
+- **install.sh**: Auto-создание `.claude/settings.json` с pre-approved permissions
+  - git, gh, bd — полный доступ без вопросов
+  - Скрипты: `./scripts/*`, bash, timeout
+  - Утилиты: jq, date, stat, pkill, kill, sleep
+  - Файловые операции: Read, Edit, Write, Glob, Grep
+- Пользователь больше не будет завален вопросами при запуске orchestrator
+
+---
+
 ## [0.5.0] - 2026-01-27
 
 ### Milestone: Ready for Testing
