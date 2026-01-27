@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.5.0] - 2026-01-27
+
+### Milestone: Ready for Testing
+
+Первый полностью функциональный релиз. Все 18 задач закрыты, архитектурный аудит пройден.
+
+### Summary
+- 10 агентов: Tech Writer, Manager, Architect, Executor, Senior Executor, 5 Analysts
+- 8 скриптов: orchestrator, detect-phase, run-analysts, run-executors, run-senior-executor, close-completed-parents, log, notify
+- 7 фаз: INIT → PLANNING → HELPERS → PLAN_REVIEW → IMPLEMENTATION → FINAL_REVIEW → DONE
+- 27 архитектурных решений задокументированы в PROJECT.md
+- One-liner установка: `curl -fsSL .../invite.sh | bash`
+
+### Architecture Highlights
+- Atomic orchestrator lock (noclobber)
+- Graceful shutdown с smart reset (5min threshold)
+- Backpressure через MAX_PARALLEL_EXECUTORS
+- Squash merge на Senior Executor (Haiku-friendly)
+- Draft TTL 24h для Tech Writer
+- Beads daemon health check каждую итерацию
+
+---
+
 ## [0.4.21] - 2026-01-27
 
 ### Fixed
