@@ -383,24 +383,23 @@ generate_iteration_stats() {
 
     local stats_file="$stats_dir/iteration-$timestamp.md"
 
-    # Get iteration start time
-    local start_time
-    start_time=$(cat "$CLAUDEV_DIR/iteration_start.txt" 2>/dev/null || echo "unknown")
-    local end_time
+    # Get iteration start time (stored as epoch for cross-platform compatibility)
+    local start_epoch end_epoch
+    start_epoch=$(cat "$CLAUDEV_DIR/iteration_start.txt" 2>/dev/null || echo "0")
+    end_epoch=$(date +%s)
+
+    # Convert epoch to readable format (cross-platform)
+    local start_time end_time
+    start_time=$(date -r "$start_epoch" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || date -d "@$start_epoch" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "unknown")
     end_time=$(date '+%Y-%m-%d %H:%M:%S')
 
     # Calculate duration
     local duration="unknown"
-    if [ -f "$CLAUDEV_DIR/iteration_start.txt" ]; then
-        local start_epoch end_epoch
-        start_epoch=$(date -j -f "%Y-%m-%d %H:%M:%S" "$start_time" +%s 2>/dev/null || date -d "$start_time" +%s 2>/dev/null || echo "0")
-        end_epoch=$(date +%s)
-        if [ "$start_epoch" -gt 0 ]; then
-            local dur_seconds=$((end_epoch - start_epoch))
-            local dur_hours=$((dur_seconds / 3600))
-            local dur_minutes=$(( (dur_seconds % 3600) / 60 ))
-            duration="${dur_hours}h ${dur_minutes}m"
-        fi
+    if [ "$start_epoch" -gt 0 ]; then
+        local dur_seconds=$((end_epoch - start_epoch))
+        local dur_hours=$((dur_seconds / 3600))
+        local dur_minutes=$(( (dur_seconds % 3600) / 60 ))
+        duration="${dur_hours}h ${dur_minutes}m"
     fi
 
     # Get task stats from beads
@@ -475,7 +474,14 @@ dispatch_phase() {
             # Tech Writer creates SPEC.md (INTERACTIVE - needs user dialogue)
             if [ -f ".claude/agents/tech-writer.md" ]; then
                 log "INFO" "INIT: Starting Tech Writer (interactive)..."
-                run_interactive_agent "tech-writer" ".claude/agents/tech-writer.md" "opus"
+                if ! run_interactive_agent "tech-writer" ".claude/agents/tech-writer.md" "opus"; then
+                    log "WARN" "Tech Writer exited with error. Check SPEC.draft.md for progress."
+                    if [ -f "$PROJECT_DIR/SPEC.draft.md" ]; then
+                        log "INFO" "Draft exists — will continue from draft next cycle"
+                    else
+                        log "WARN" "No draft saved — will start fresh next cycle"
+                    fi
+                fi
             else
                 log "WARN" "tech-writer.md not found, skipping INIT"
             fi
@@ -587,8 +593,8 @@ main() {
     log "INFO" "Project: $PROJECT_DIR"
     log "INFO" "=========================================="
 
-    # Record iteration start time
-    date '+%Y-%m-%d %H:%M:%S' > "$CLAUDEV_DIR/iteration_start.txt"
+    # Record iteration start time (epoch for cross-platform compatibility)
+    date +%s > "$CLAUDEV_DIR/iteration_start.txt"
 
     local cycle=0
     local max_cycles="${MAX_CYCLES:-1000}"

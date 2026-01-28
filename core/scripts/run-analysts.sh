@@ -128,7 +128,10 @@ main() {
         log "INFO" "Some analysts still open ($open_triggers remaining)"
     fi
 
-    bd sync 2>/dev/null || true
+    # Sync only if daemon is not running (daemon auto-syncs)
+    if ! bd sync --status 2>/dev/null | grep -q "auto-commit.*enabled"; then
+        bd sync 2>/dev/null || true
+    fi
     log "INFO" "RUN-ANALYSTS FINISHED"
 }
 
