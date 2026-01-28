@@ -1,10 +1,10 @@
 # Changelog
 
-## [0.7.3] - WIP
+## [0.7.3] - 2026-01-28
 
-**Epic:** claudev-h9q — Onboarding improvements
+**Epic:** claudev-h9q — CLOSED
 
-### Planned
+### Added
 - **claudev-260**: Auto-start beads daemon в `claudev init`
   - Проверка `bd daemon status`, автозапуск если не работает
   - Пользователю не нужно вручную запускать daemon
