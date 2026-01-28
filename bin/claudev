@@ -44,6 +44,55 @@ check_deps() {
     fi
 }
 
+# === GitHub Setup ===
+
+setup_github() {
+    # Check if gh is authenticated
+    if ! gh auth status &>/dev/null; then
+        echo ""
+        echo "GitHub позволяет хранить код в облаке и синхронизировать между устройствами."
+        echo ""
+        read -p "У вас есть аккаунт GitHub? (y/n) " -n 1 -r
+        echo ""
+
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            info "Запускаем авторизацию GitHub..."
+            echo ""
+            if gh auth login; then
+                success "GitHub авторизация успешна"
+            else
+                warn "Авторизация не удалась, работаем локально"
+                return
+            fi
+        else
+            info "Работаем локально (без GitHub)"
+            return
+        fi
+    fi
+
+    # Check if remote exists
+    if ! git remote get-url origin &>/dev/null; then
+        echo ""
+        read -p "Создать GitHub репозиторий для этого проекта? (y/n) " -n 1 -r
+        echo ""
+
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            local repo_name=$(basename "$(pwd)")
+            info "Создаём приватный репозиторий $repo_name..."
+
+            if gh repo create "$repo_name" --private --source=. --remote=origin; then
+                success "GitHub репозиторий создан"
+            else
+                warn "Не удалось создать репозиторий, работаем локально"
+            fi
+        else
+            info "Работаем локально (без GitHub)"
+        fi
+    else
+        success "GitHub remote настроен"
+    fi
+}
+
 # === Project Type Detection ===
 
 detect_project_type() {
@@ -104,6 +153,9 @@ cmd_init() {
     else
         success "git already initialized"
     fi
+
+    # GitHub setup (interactive)
+    setup_github
 
     # Beads
     if [[ ! -d ".beads" ]]; then
