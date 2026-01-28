@@ -106,7 +106,15 @@ if [[ "$AUTO_INSTALL" == "--auto-install" ]]; then
         install_homebrew
 
         echo "Устанавливаю зависимости (macOS)..."
-        install_with_brew "beads" "bd"
+
+        # beads требует tap
+        if ! command -v bd &>/dev/null; then
+            echo "  Устанавливаю beads..."
+            brew tap steveyegge/beads
+            brew install bd
+            echo "  ✓ beads установлен"
+        fi
+
         install_with_brew "gh"
         install_with_brew "jq"
         install_claude_code
@@ -127,14 +135,20 @@ if [[ "$AUTO_INSTALL" == "--auto-install" ]]; then
             install_with_apt "jq"
             install_claude_code
 
-            # beads через npm на Linux (если нет brew)
+            # beads на Linux: brew tap или go install
             if ! command -v bd &>/dev/null; then
-                if command -v npm &>/dev/null; then
-                    echo "  Устанавливаю beads через npm..."
-                    npm install -g beads
+                if command -v brew &>/dev/null; then
+                    echo "  Устанавливаю beads через brew..."
+                    brew tap steveyegge/beads
+                    brew install bd
+                    echo "  ✓ beads установлен"
+                elif command -v go &>/dev/null; then
+                    echo "  Устанавливаю beads через go install..."
+                    go install github.com/steveyegge/beads/cmd/bd@latest
                     echo "  ✓ beads установлен"
                 else
-                    echo "  Warning: npm не найден, beads нужно установить вручную"
+                    echo "  Warning: brew/go не найдены, beads нужно установить вручную"
+                    echo "  См. https://github.com/steveyegge/beads"
                 fi
             fi
         else
