@@ -93,6 +93,20 @@ setup_github() {
     fi
 }
 
+# === Gitleaks Recommendation ===
+
+recommend_gitleaks() {
+    # Only recommend if GitHub is configured and gitleaks not installed
+    if git remote get-url origin &>/dev/null; then
+        if ! command -v gitleaks &>/dev/null; then
+            echo ""
+            warn "Рекомендуем установить gitleaks для защиты от случайной утечки секретов"
+            echo "  brew install gitleaks"
+            echo ""
+        fi
+    fi
+}
+
 # === Project Type Detection ===
 
 detect_project_type() {
@@ -156,6 +170,9 @@ cmd_init() {
 
     # GitHub setup (interactive)
     setup_github
+
+    # Gitleaks recommendation (only if GitHub configured)
+    recommend_gitleaks
 
     # Beads
     if [[ ! -d ".beads" ]]; then
