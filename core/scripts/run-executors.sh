@@ -54,9 +54,18 @@ get_ready_tasks() {
 run_executor() {
     local task_id=$1
 
-    # Try to claim the task
+    # Check task status before claim (avoid race condition confusion)
+    local current_status
+    current_status=$(bd show "$task_id" --json 2>/dev/null | jq -r '.status // "unknown"' 2>/dev/null)
+
+    if [ "$current_status" != "open" ]; then
+        log "INFO" "Task $task_id not open (status: $current_status), skipping"
+        return 0
+    fi
+
+    # Try to claim the task (atomic via beads)
     if ! bd update "$task_id" --status=in_progress --add-label=executor 2>/dev/null; then
-        log "INFO" "Task $task_id already claimed, skipping"
+        log "INFO" "Task $task_id claim failed (race condition), skipping"
         return 0
     fi
 
@@ -93,13 +102,19 @@ PROJECT_ROOT: $PROJECT_DIR"
         local exit_code=$?
         if [ $exit_code -eq 124 ]; then
             log "WARN" "Executor timeout for $task_id"
-            # Increment retry counter
-            local current_retry
-            current_retry=$(echo "$task_json" | jq -r '.labels[]? | select(startswith("retry:")) | split(":")[1]' 2>/dev/null | head -1)
+            # Increment retry counter (take max if multiple exist, remove old label)
+            local current_retry old_retry_label
+            current_retry=$(echo "$task_json" | jq -r '[.labels[]? | select(startswith("retry:")) | split(":")[1] | tonumber] | max // 0' 2>/dev/null)
             current_retry="${current_retry:-0}"
             local new_retry=$((current_retry + 1))
 
-            bd update "$task_id" --status=open --remove-label=executor --add-label="retry:$new_retry" --notes="Timeout at $(date '+%Y-%m-%d %H:%M:%S')" 2>/dev/null || true
+            # Remove old retry label if exists, add new one
+            old_retry_label=$(echo "$task_json" | jq -r '.labels[]? | select(startswith("retry:"))' 2>/dev/null | head -1)
+            if [ -n "$old_retry_label" ]; then
+                bd update "$task_id" --status=open --remove-label=executor --remove-label="$old_retry_label" --add-label="retry:$new_retry" --notes="Timeout at $(date '+%Y-%m-%d %H:%M:%S')" 2>/dev/null || true
+            else
+                bd update "$task_id" --status=open --remove-label=executor --add-label="retry:$new_retry" --notes="Timeout at $(date '+%Y-%m-%d %H:%M:%S')" 2>/dev/null || true
+            fi
         else
             log "ERROR" "Executor failed for $task_id (exit: $exit_code)"
             bd update "$task_id" --status=open --remove-label=executor --notes="Executor failed (exit: $exit_code)" 2>/dev/null || true

@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.7.1] - 2026-01-28
+
+### Fixed
+- **run-executors.sh**: Проверка статуса задачи ПЕРЕД claim (избегает путаницы при race condition)
+- **run-executors.sh**: Retry counter теперь берёт максимальный retry: label и удаляет старый при инкременте
+- **orchestrator.sh**: Heredoc для формирования prompt в run_interactive_agent (безопасно для кавычек в agent prompts)
+
+---
+
 ## [0.7.0] - 2026-01-28
 
 ### Fixed

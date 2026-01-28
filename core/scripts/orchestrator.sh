@@ -186,13 +186,19 @@ run_interactive_agent() {
     local agent_prompt
     agent_prompt=$(cat "$agent_file")
 
-    # Интерактивный режим: передаём содержимое промпта как системную инструкцию
-    # Без --print, без timeout, без перенаправления в файл
-    # Используем --system-prompt для инструкций агента
-    if claude --model "$model" --system-prompt "$agent_prompt
+    # Build full prompt via heredoc (safe for quotes in agent_prompt)
+    local full_prompt
+    full_prompt=$(cat <<EOF
+$agent_prompt
 
 ---
-PROJECT_ROOT: $PROJECT_DIR"; then
+PROJECT_ROOT: $PROJECT_DIR
+EOF
+)
+
+    # Интерактивный режим: передаём содержимое промпта как системную инструкцию
+    # Без --print, без timeout, без перенаправления в файл
+    if claude --model "$model" --system-prompt "$full_prompt"; then
         log "INFO" "Interactive agent $agent_name completed"
         return 0
     else
