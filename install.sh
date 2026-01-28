@@ -174,6 +174,21 @@ elif [[ "$OS" == "linux" ]]; then
         install_with_apt "jq"
         install_beads_linux
         install_claude_code
+
+        # gitleaks (try multiple methods, skip silently if none work)
+        if ! command -v gitleaks &>/dev/null; then
+            # Try snap first (most reliable on Ubuntu)
+            if command -v snap &>/dev/null; then
+                info "Installing gitleaks via snap..."
+                sudo snap install gitleaks 2>/dev/null && success "gitleaks installed" || true
+            # Try go install if available
+            elif command -v go &>/dev/null; then
+                info "Installing gitleaks via go..."
+                go install github.com/gitleaks/gitleaks/v8@latest 2>/dev/null && success "gitleaks installed" || true
+            fi
+        else
+            success "gitleaks already installed"
+        fi
     else
         warn "apt not found, install dependencies manually"
     fi

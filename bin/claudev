@@ -93,16 +93,51 @@ setup_github() {
     fi
 }
 
-# === Gitleaks Recommendation ===
+# === Gitleaks Auto-Setup ===
 
-recommend_gitleaks() {
-    # Only recommend if GitHub is configured and gitleaks not installed
-    if git remote get-url origin &>/dev/null; then
-        if ! command -v gitleaks &>/dev/null; then
-            echo ""
-            warn "Рекомендуем установить gitleaks для защиты от случайной утечки секретов"
-            echo "  brew install gitleaks"
-            echo ""
+setup_gitleaks() {
+    # Skip if no GitHub remote (local projects don't need this)
+    if ! git remote get-url origin &>/dev/null; then
+        return
+    fi
+
+    # Try to install gitleaks if not present
+    if ! command -v gitleaks &>/dev/null; then
+        # Try brew (macOS/Linux with Homebrew)
+        if command -v brew &>/dev/null; then
+            brew install gitleaks &>/dev/null && success "gitleaks installed"
+        # Try apt (Debian/Ubuntu)
+        elif command -v apt &>/dev/null; then
+            sudo apt install -y gitleaks &>/dev/null 2>&1 && success "gitleaks installed"
+        fi
+        # If neither works, silently skip
+    fi
+
+    # Setup pre-commit hook if gitleaks is available
+    if command -v gitleaks &>/dev/null; then
+        local hook_file=".git/hooks/pre-commit"
+
+        # Create hooks dir if needed
+        mkdir -p .git/hooks
+
+        # Add gitleaks to pre-commit (or create new hook)
+        if [[ -f "$hook_file" ]]; then
+            if ! grep -q "gitleaks" "$hook_file"; then
+                # Append to existing hook
+                echo "" >> "$hook_file"
+                echo "# Gitleaks - prevent secret leaks" >> "$hook_file"
+                echo "gitleaks protect --staged --verbose" >> "$hook_file"
+                success "gitleaks hook added"
+            fi
+        else
+            # Create new hook
+            cat > "$hook_file" << 'HOOK'
+#!/bin/bash
+# Gitleaks - prevent secret leaks
+gitleaks protect --staged --verbose
+HOOK
+            chmod +x "$hook_file"
+            success "gitleaks hook created"
         fi
     fi
 }
@@ -171,8 +206,8 @@ cmd_init() {
     # GitHub setup (interactive)
     setup_github
 
-    # Gitleaks recommendation (only if GitHub configured)
-    recommend_gitleaks
+    # Gitleaks auto-setup (only if GitHub configured)
+    setup_gitleaks
 
     # Beads
     if [[ ! -d ".beads" ]]; then

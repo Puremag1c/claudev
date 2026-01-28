@@ -13,9 +13,10 @@
   - Помощь с авторизацией (`gh auth login`)
   - Предложение создать repo (`gh repo create`) если нет remote
   - Graceful fallback на локальную работу без GitHub
-- **claudev-06l**: Conditional gitleaks recommendation
-  - Рекомендация gitleaks только при наличии GitHub remote
-  - Локальные проекты не получают навязчивых предупреждений
+- **claudev-06l**: Auto-setup gitleaks при наличии GitHub
+  - Автоматическая установка gitleaks (brew/snap/go) если есть GitHub remote
+  - Автоматическая настройка pre-commit hook
+  - Локальные проекты без GitHub — пропускаем молча
 
 ---
 
