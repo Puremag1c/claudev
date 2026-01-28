@@ -134,9 +134,9 @@ cleanup() {
     pkill -P $$ -KILL 2>/dev/null || true
 
     # Reset stale in_progress tasks (>5min old)
-    for task_id in $(bd list --status=in_progress --format=json 2>/dev/null | jq -r '.[].id' 2>/dev/null || true); do
+    for task_id in $(bd list --status=in_progress --json 2>/dev/null | jq -r '.[].id' 2>/dev/null || true); do
         local updated_at
-        updated_at=$(bd show "$task_id" --format=json 2>/dev/null | jq -r '.updated_at' 2>/dev/null || echo "")
+        updated_at=$(bd show "$task_id" --json 2>/dev/null | jq -r '.updated_at' 2>/dev/null || echo "")
         if [ -n "$updated_at" ]; then
             local claimed_epoch now_epoch age
             # Strip milliseconds and timezone for cross-platform parsing
@@ -247,7 +247,7 @@ create_analyst_triggers() {
 
     for analyst in "${analysts[@]}"; do
         local trigger_title="run-analyst-$analyst"
-        if ! bd list --format=json 2>/dev/null | jq -e ".[] | select(.title == \"$trigger_title\")" > /dev/null 2>&1; then
+        if ! bd list --json 2>/dev/null | jq -e ".[] | select(.title == \"$trigger_title\")" > /dev/null 2>&1; then
             bd create --title="$trigger_title" --type=task --priority=1 2>/dev/null || true
             log "INFO" "Created trigger: $trigger_title"
         fi
@@ -265,7 +265,7 @@ check_and_create_done_milestone() {
         log "INFO" "Final review passed, creating project-done milestone"
         bd create --title="Project complete" --type=task --label=milestone:project-done 2>/dev/null || true
         local milestone_id
-        milestone_id=$(bd list --format=json 2>/dev/null | jq -r '.[] | select(.labels[]? == "milestone:project-done") | .id' | head -1)
+        milestone_id=$(bd list --json 2>/dev/null | jq -r '.[] | select(.labels[]? == "milestone:project-done") | .id' | head -1)
         if [ -n "$milestone_id" ]; then
             bd close "$milestone_id" --reason="Final review passed" 2>/dev/null || true
         fi
@@ -278,11 +278,11 @@ check_and_create_done_milestone() {
 check_problems_and_consult_manager() {
     # Count blocked tasks
     local blocked_count
-    blocked_count=$(bd list --format=json 2>/dev/null | jq '[.[] | select(.labels[]? | startswith("blocked:"))] | length' 2>/dev/null || echo "0")
+    blocked_count=$(bd list --json 2>/dev/null | jq '[.[] | select(.labels[]? | startswith("blocked:"))] | length' 2>/dev/null || echo "0")
 
     # Count tasks at retry limit
     local retry_limit_count
-    retry_limit_count=$(bd list --format=json 2>/dev/null | jq "[.[] | select(.labels[]? | test(\"^retry:[$RETRY_LIMIT-9]\"))] | length" 2>/dev/null || echo "0")
+    retry_limit_count=$(bd list --json 2>/dev/null | jq "[.[] | select(.labels[]? | test(\"^retry:[$RETRY_LIMIT-9]\"))] | length" 2>/dev/null || echo "0")
 
     # If problems exist, consult Manager
     if [ "$blocked_count" -gt 0 ] || [ "$retry_limit_count" -gt 0 ]; then
@@ -310,10 +310,10 @@ call_manager_for_problems() {
 
     # Get problem details
     local blocked_tasks
-    blocked_tasks=$(bd list --format=json 2>/dev/null | jq -r '.[] | select(.labels[]? | startswith("blocked:")) | "\(.id): \(.title)"' 2>/dev/null || echo "none")
+    blocked_tasks=$(bd list --json 2>/dev/null | jq -r '.[] | select(.labels[]? | startswith("blocked:")) | "\(.id): \(.title)"' 2>/dev/null || echo "none")
 
     local retry_tasks
-    retry_tasks=$(bd list --format=json 2>/dev/null | jq -r ".[] | select(.labels[]? | test(\"^retry:[$RETRY_LIMIT-9]\")) | \"\(.id): \(.title)\"" 2>/dev/null || echo "none")
+    retry_tasks=$(bd list --json 2>/dev/null | jq -r ".[] | select(.labels[]? | test(\"^retry:[$RETRY_LIMIT-9]\")) | \"\(.id): \(.title)\"" 2>/dev/null || echo "none")
 
     local output_file="$LOGS_DIR/manager-problems-$(date +%s).log"
 
@@ -399,9 +399,9 @@ generate_iteration_stats() {
 
     # Get task stats from beads
     local total closed blocked
-    total=$(bd list --format=json 2>/dev/null | jq 'length' 2>/dev/null || echo "0")
-    closed=$(bd list --status=closed --format=json 2>/dev/null | jq 'length' 2>/dev/null || echo "0")
-    blocked=$(bd list --format=json 2>/dev/null | jq '[.[] | select(.labels[]? | startswith("blocked:"))] | length' 2>/dev/null || echo "0")
+    total=$(bd list --json 2>/dev/null | jq 'length' 2>/dev/null || echo "0")
+    closed=$(bd list --status=closed --json 2>/dev/null | jq 'length' 2>/dev/null || echo "0")
+    blocked=$(bd list --json 2>/dev/null | jq '[.[] | select(.labels[]? | startswith("blocked:"))] | length' 2>/dev/null || echo "0")
 
     # Count agent runs from logs
     local manager_runs architect_runs executor_runs analyst_runs senior_runs
@@ -418,7 +418,7 @@ generate_iteration_stats() {
 
     # Get blocked tasks details
     local blocked_details
-    blocked_details=$(bd list --format=json 2>/dev/null | jq -r '.[] | select(.labels[]? | startswith("blocked:")) | "- `\(.id)`: \(.title)"' 2>/dev/null || echo "- none")
+    blocked_details=$(bd list --json 2>/dev/null | jq -r '.[] | select(.labels[]? | startswith("blocked:")) | "- `\(.id)`: \(.title)"' 2>/dev/null || echo "- none")
 
     # Generate report
     cat > "$stats_file" << EOF
@@ -492,13 +492,13 @@ $spec_content"
 
             # Check if all analysts done and create milestone (single source of truth)
             local open_triggers
-            open_triggers=$(bd list --status=open --format=json 2>/dev/null | jq '[.[] | select(.title | startswith("run-analyst-"))] | length' 2>/dev/null || echo "0")
+            open_triggers=$(bd list --status=open --json 2>/dev/null | jq '[.[] | select(.title | startswith("run-analyst-"))] | length' 2>/dev/null || echo "0")
             if [ "$open_triggers" -eq 0 ]; then
-                if ! bd list --format=json 2>/dev/null | jq -e '.[] | select(.labels[]? == "milestone:analysts-done")' > /dev/null 2>&1; then
+                if ! bd list --json 2>/dev/null | jq -e '.[] | select(.labels[]? == "milestone:analysts-done")' > /dev/null 2>&1; then
                     log "INFO" "All analysts done, creating milestone"
                     bd create --title="Analysts complete" --type=task --label=milestone:analysts-done 2>/dev/null || true
                     local milestone_id
-                    milestone_id=$(bd list --format=json 2>/dev/null | jq -r '.[] | select(.labels[]? == "milestone:analysts-done") | .id' | head -1)
+                    milestone_id=$(bd list --json 2>/dev/null | jq -r '.[] | select(.labels[]? == "milestone:analysts-done") | .id' | head -1)
                     [ -n "$milestone_id" ] && bd close "$milestone_id" 2>/dev/null || true
                 fi
             fi
@@ -508,7 +508,7 @@ $spec_content"
             # Architect reviews additions from Analysts
             log "INFO" "PLAN_REVIEW: Starting Architect to review plan..."
             # Create trigger task if not exists
-            if ! bd list --format=json 2>/dev/null | jq -e '.[] | select(.title == "run-plan-review")' > /dev/null 2>&1; then
+            if ! bd list --json 2>/dev/null | jq -e '.[] | select(.title == "run-plan-review")' > /dev/null 2>&1; then
                 bd create --title="run-plan-review" --type=task --priority=0 2>/dev/null || true
             fi
             run_agent_with_mode "architect" ".claude/agents/architect.md" "opus" "plan_review" ""
@@ -539,7 +539,7 @@ $spec_content"
             log "INFO" "Creating P0 task for Architect to fix cycles..."
 
             # Create P0 task for Architect
-            if ! bd list --format=json 2>/dev/null | jq -e '.[] | select(.title == "Fix dependency cycles")' > /dev/null 2>&1; then
+            if ! bd list --json 2>/dev/null | jq -e '.[] | select(.title == "Fix dependency cycles")' > /dev/null 2>&1; then
                 bd create --title="Fix dependency cycles" --type=task --priority=0 \
                     --description="bd dep cycles detected circular dependencies. Fix before IMPLEMENTATION can proceed.
 

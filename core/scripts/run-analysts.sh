@@ -40,7 +40,7 @@ run_analyst() {
 
     # Find trigger task
     local task_id
-    task_id=$(bd list --format=json 2>/dev/null | jq -r ".[] | select(.title == \"$trigger_task\") | .id" | head -1)
+    task_id=$(bd list --json 2>/dev/null | jq -r ".[] | select(.title == \"$trigger_task\") | .id" | head -1)
 
     if [ -z "$task_id" ]; then
         log "WARN" "No trigger task for analyst-$analyst"
@@ -99,7 +99,7 @@ main() {
     # Check that all trigger tasks exist
     local missing=0
     for analyst in "${ANALYSTS[@]}"; do
-        if ! bd list --format=json 2>/dev/null | jq -e ".[] | select(.title == \"run-analyst-$analyst\")" > /dev/null 2>&1; then
+        if ! bd list --json 2>/dev/null | jq -e ".[] | select(.title == \"run-analyst-$analyst\")" > /dev/null 2>&1; then
             log "WARN" "Trigger task run-analyst-$analyst not found"
             ((missing++))
         fi
@@ -120,7 +120,7 @@ main() {
 
     # Check completion status (milestone created by orchestrator)
     local open_triggers
-    open_triggers=$(bd list --status=open --format=json 2>/dev/null | jq '[.[] | select(.title | startswith("run-analyst-"))] | length' 2>/dev/null || echo "0")
+    open_triggers=$(bd list --status=open --json 2>/dev/null | jq '[.[] | select(.title | startswith("run-analyst-"))] | length' 2>/dev/null || echo "0")
 
     if [ "$open_triggers" -eq 0 ]; then
         log "INFO" "All analysts completed"

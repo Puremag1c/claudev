@@ -33,7 +33,7 @@ log() {
 
 count_active_executors() {
     # Считаем задачи в in_progress с label executor
-    bd list --status=in_progress --format=json 2>/dev/null | \
+    bd list --status=in_progress --json 2>/dev/null | \
         jq '[.[] | select(.labels[]? == "executor")] | length' 2>/dev/null || echo "0"
 }
 
@@ -44,7 +44,7 @@ get_ready_tasks() {
     # Фильтруем:
     #   - type == task
     #   - исключаем служебные (triggers, milestones)
-    bd ready --format=json 2>/dev/null | \
+    bd ready --json 2>/dev/null | \
         jq -r '.[] | select(.type == "task") | select(.title | test("^run-|^milestone:") | not) | .id' 2>/dev/null | \
         head -n "$MAX_PARALLEL"
 }
@@ -62,7 +62,7 @@ run_executor() {
 
     # Get task details
     local task_json
-    task_json=$(bd show "$task_id" --format=json 2>/dev/null || echo "{}")
+    task_json=$(bd show "$task_id" --json 2>/dev/null || echo "{}")
 
     local task_title
     task_title=$(echo "$task_json" | jq -r '.title // "Unknown"')

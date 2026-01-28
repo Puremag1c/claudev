@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.7.0] - 2026-01-28
+
+### Fixed
+- **P0 CRITICAL**: Beads CLI флаги — `--format=json` заменён на `--json` во всех скриптах
+  - `bd show` и `bd ready` не поддерживают `--format=json` (только глобальный `--json`)
+  - `bd list --format=json` выдавал пустой вывод (Go template, не JSON)
+  - Затронуты: orchestrator.sh, run-executors.sh, run-senior-executor.sh, run-analysts.sh, detect-phase.sh
+
+### Added
+- **Existing project support**: `claudev init` анализирует существующий код и создаёт PROJECT_CONTEXT.md
+- **Delete command**: `claudev delete` для полного удаления claudev из проекта
+- **Deep analysis**: `analyze-project.sh` определяет стек, фреймворк, зависимости
+- **Tech Writer integration**: Учитывает PROJECT_CONTEXT.md при создании SPEC.md
+
+---
+
+## [0.6.0] - 2026-01-27
+
+### Added
+- **Global installation**: claudev устанавливается в `~/.claudev/` и доступен глобально
+- **claudev init**: Инициализация проекта командой `claudev init` в любой директории
+- **Project-local config**: `.claudev/config.sh` создаётся в проекте, не глобально
+- **Symlinked agents**: `.claude/agents/` ссылается на глобальные агенты
+
+### Changed
+- install.sh теперь устанавливает глобально (не в текущую папку)
+- bin/claudev переписан как полноценный CLI с командами (init, run, status, delete)
+
+---
+
 ## [0.5.5] - 2026-01-27
 
 ### Added

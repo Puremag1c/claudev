@@ -29,7 +29,7 @@ log() {
 
 get_review_tasks() {
     # Tasks with label=needs-review
-    bd list --status=in_progress --format=json 2>/dev/null | \
+    bd list --status=in_progress --json 2>/dev/null | \
         jq -r '.[] | select(.labels[]? == "needs-review") | .id' 2>/dev/null || true
 }
 
@@ -42,7 +42,7 @@ process_review() {
 
     # Get task details
     local task_json
-    task_json=$(bd show "$task_id" --format=json 2>/dev/null || echo "{}")
+    task_json=$(bd show "$task_id" --json 2>/dev/null || echo "{}")
 
     local task_title
     task_title=$(echo "$task_json" | jq -r '.title // "Unknown"')

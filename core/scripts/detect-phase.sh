@@ -34,17 +34,17 @@ fi
 # Собираем статистику из beads
 get_count() {
     local filter=$1
-    bd list $filter --format=json 2>/dev/null | jq 'length' 2>/dev/null || echo "0"
+    bd list $filter --json 2>/dev/null | jq 'length' 2>/dev/null || echo "0"
 }
 
 has_label() {
     local label=$1
-    bd list --format=json 2>/dev/null | jq "[.[] | select(.labels[]? == \"$label\")] | length" 2>/dev/null || echo "0"
+    bd list --json 2>/dev/null | jq "[.[] | select(.labels[]? == \"$label\")] | length" 2>/dev/null || echo "0"
 }
 
 has_open_task() {
     local title_pattern=$1
-    bd list --status=open --format=json 2>/dev/null | jq "[.[] | select(.title | test(\"$title_pattern\"))] | length" 2>/dev/null || echo "0"
+    bd list --status=open --json 2>/dev/null | jq "[.[] | select(.title | test(\"$title_pattern\"))] | length" 2>/dev/null || echo "0"
 }
 
 # Статистика
