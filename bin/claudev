@@ -142,6 +142,72 @@ HOOK
     fi
 }
 
+# === MCP Servers Setup ===
+
+setup_mcp() {
+    # Skip if .mcp.json already exists
+    if [[ -f ".mcp.json" ]]; then
+        success "MCP servers configured (.mcp.json exists)"
+        return
+    fi
+
+    info "Configuring MCP servers..."
+
+    # Start with empty mcpServers object
+    local mcp_config='{"mcpServers":{}}'
+
+    # 1. Playwright - always add (no auth required)
+    mcp_config=$(echo "$mcp_config" | jq '.mcpServers.playwright = {
+        "command": "npx",
+        "args": ["-y", "@playwright/mcp@latest"]
+    }')
+    success "Added Playwright MCP (browser automation)"
+
+    # 2. GitHub - add if gh is authenticated
+    if gh auth status &>/dev/null; then
+        # Use gh auth token dynamically via command substitution
+        # Token is NOT stored in file - fetched at runtime
+        mcp_config=$(echo "$mcp_config" | jq '.mcpServers.github = {
+            "command": "sh",
+            "args": ["-c", "GITHUB_PERSONAL_ACCESS_TOKEN=$(gh auth token) npx -y @modelcontextprotocol/server-github"]
+        }')
+        success "Added GitHub MCP (repo management)"
+    else
+        info "GitHub MCP skipped (gh not authenticated)"
+    fi
+
+    # 3. PostgreSQL - add template with placeholder
+    mcp_config=$(echo "$mcp_config" | jq '.mcpServers["postgres"] = {
+        "command": "npx",
+        "args": ["-y", "@bytebase/dbhub", "--dsn", "env:DATABASE_URL"],
+        "env": {
+            "DATABASE_URL": "postgresql://user:password@localhost:5432/mydb"
+        }
+    }')
+
+    # 4. Supabase - add template with placeholder
+    mcp_config=$(echo "$mcp_config" | jq '.mcpServers["supabase"] = {
+        "command": "npx",
+        "args": ["-y", "@supabase/mcp-server-supabase@latest", "--access-token", "env:SUPABASE_ACCESS_TOKEN"],
+        "env": {
+            "SUPABASE_ACCESS_TOKEN": "your-supabase-access-token"
+        }
+    }')
+
+    # Write .mcp.json
+    echo "$mcp_config" | jq '.' > .mcp.json
+
+    success "Created .mcp.json"
+    echo ""
+    info "MCP servers configured:"
+    echo "  - playwright: Ready to use"
+    if gh auth status &>/dev/null; then
+        echo "  - github: Ready to use"
+    fi
+    echo "  - postgres: Edit DATABASE_URL in .mcp.json"
+    echo "  - supabase: Edit SUPABASE_ACCESS_TOKEN in .mcp.json"
+}
+
 # === Project Type Detection ===
 
 detect_project_type() {
@@ -208,6 +274,9 @@ cmd_init() {
 
     # Gitleaks auto-setup (only if GitHub configured)
     setup_gitleaks
+
+    # MCP servers setup
+    setup_mcp
 
     # Beads
     if [[ ! -d ".beads" ]]; then
@@ -278,6 +347,7 @@ logs/
 stats/
 .claudev/*.lock
 PROJECT_CONTEXT.md
+.mcp.json
 EOF
             success "Updated .gitignore"
         fi
@@ -289,6 +359,7 @@ logs/
 stats/
 .claudev/*.lock
 PROJECT_CONTEXT.md
+.mcp.json
 EOF
         success "Created .gitignore"
     fi

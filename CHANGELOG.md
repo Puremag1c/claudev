@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.8.0] - 2026-01-28
+
+### Milestone: Ready for Production
+
+Полный архитектурный аудит пройден. MCP интеграция добавлена. Система готова к первым реальным запускам.
+
+### Added
+- **MCP Integration** (claudev-5xm): Автоматическая настройка MCP серверов при `claudev init`
+  - **Playwright**: Автоматически (browser automation, тестирование)
+  - **GitHub**: Автоматически если `gh auth` настроен (токен НЕ хранится в файле — динамически через `gh auth token`)
+  - **PostgreSQL**: Шаблон с placeholder (требует DATABASE_URL)
+  - **Supabase**: Шаблон с placeholder (требует SUPABASE_ACCESS_TOKEN)
+- `.mcp.json` добавлен в `.gitignore` (security: токены не попадут в git)
+
+### Verified
+- **Синтаксис**: Все 10 bash скриптов прошли `bash -n` проверку
+- **Beads CLI**: Все используемые команды существуют (`bd children`, `bd dep cycles`, `bd epic close-eligible`)
+- **Execution paths**: Все пути от `claudev init` до `DONE` фазы проверены
+- **Failure modes**: Lock files, stale task reset, draft TTL, WIP commits — всё работает
+- **Data flow**: Beads = источник правды для задач, Git = для кода
+
+### Architecture
+- 11 агентов: Tech Writer, Manager, Architect, Executor, Senior Executor, Analyzer, 5 Analysts
+- 10 скриптов в core/scripts/
+- 7 фаз: INIT → PLANNING → HELPERS → PLAN_REVIEW → IMPLEMENTATION → FINAL_REVIEW → DONE
+- Crash recovery: автоматический сброс stale tasks, graceful shutdown
+
+### P0 Critical Issues: 0
+### P1 Important Issues: 0
+
+---
+
 ## [0.7.3] - 2026-01-28
 
 **Epic:** claudev-h9q — CLOSED
