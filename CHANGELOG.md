@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.7.2] - 2026-01-28
+
+### Added
+- **orchestrator.sh**: `check_stale_tasks()` — автоматический сброс зависших задач в рабочем цикле
+  - Задачи `in_progress` без обновления >10 минут сбрасываются в `open`
+  - Раньше stale tasks сбрасывались только при shutdown orchestrator
+  - Теперь система самовосстанавливается если executor упал без timeout (kill -9, OOM)
+
+---
+
 ## [0.7.1] - 2026-01-28
 
 ### Fixed

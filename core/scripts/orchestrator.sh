@@ -345,6 +345,41 @@ $retry_tasks
     log "INFO" "Manager problem resolution complete (see $output_file)"
 }
 
+# === Stale tasks check ===
+# Reset in_progress tasks older than 10 minutes (executor likely crashed)
+
+check_stale_tasks() {
+    local stale_threshold=600  # 10 minutes in seconds
+    local reset_count=0
+
+    for task_id in $(bd list --status=in_progress --json 2>/dev/null | jq -r '.[].id' 2>/dev/null || true); do
+        local updated_at
+        updated_at=$(bd show "$task_id" --json 2>/dev/null | jq -r '.updated_at' 2>/dev/null || echo "")
+
+        if [ -n "$updated_at" ]; then
+            local task_epoch now_epoch age
+            # Strip milliseconds and timezone for cross-platform parsing
+            local clean_date="${updated_at%%.*}"
+            clean_date="${clean_date%%+*}"
+            clean_date="${clean_date%%Z*}"
+            # macOS: date -j -f, Linux: date -d
+            task_epoch=$(date -j -f "%Y-%m-%dT%H:%M:%S" "$clean_date" +%s 2>/dev/null || date -d "$clean_date" +%s 2>/dev/null || echo "0")
+            now_epoch=$(date +%s)
+            age=$((now_epoch - task_epoch))
+
+            if [ "$age" -gt "$stale_threshold" ]; then
+                log "WARN" "Resetting stale task $task_id (age: ${age}s, threshold: ${stale_threshold}s)"
+                bd update "$task_id" --status=open --remove-label=executor --notes="Reset: stale in_progress (${age}s without update)" 2>/dev/null || true
+                ((reset_count++)) || true
+            fi
+        fi
+    done
+
+    if [ "$reset_count" -gt 0 ]; then
+        log "INFO" "Reset $reset_count stale task(s)"
+    fi
+}
+
 # === Draft TTL check (24h) ===
 # If draft is older than 24h, archive it and start fresh
 
@@ -638,6 +673,9 @@ main() {
 
         # 6. Auto-close completed features and epics
         ./scripts/close-completed-parents.sh 2>/dev/null || true
+
+        # 7. Reset stale in_progress tasks (executor crashed without timeout)
+        check_stale_tasks
 
         # 8. Pause before next iteration
         log "INFO" "Pause ${ITERATION_DELAY}s..."
