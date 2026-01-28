@@ -15,13 +15,40 @@
 
 ## Установка
 
-Откройте терминал в папке вашего проекта и выполните:
+Один раз на машину:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Puremag1c/claudev/main/invite.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Puremag1c/claudev/main/install.sh | bash
 ```
 
-Установщик проверит зависимости и подскажет если чего-то не хватает.
+Установщик:
+- Установит claudev в `~/.claudev/`
+- Добавит команду `claudev` в PATH
+- Установит зависимости (beads, gh, jq, Claude Code)
+
+## Использование
+
+В любом проекте:
+
+```bash
+cd your-project
+claudev init
+```
+
+Команда `claudev init`:
+1. Инициализирует git и beads
+2. Создаёт конфигурацию `.claudev/config.sh`
+3. Настраивает симлинки для агентов
+4. Запускает orchestrator
+
+## Команды
+
+```bash
+claudev init      # Инициализация проекта + запуск
+claudev start     # Запуск orchestrator
+claudev status    # Статус проекта
+claudev update    # Обновление claudev
+```
 
 ## Требования
 
@@ -38,20 +65,10 @@ wsl --install
 
 После перезагрузки откройте Ubuntu из меню Пуск и запустите команду установки.
 
-## Запуск
-
-После установки:
+## Полезные команды beads
 
 ```bash
-./scripts/orchestrator.sh
-```
-
-Система спросит что вы хотите создать и начнёт работу.
-
-## Полезные команды
-
-```bash
-bd ready          # Посмотреть текущие задачи
+bd ready          # Посмотреть готовые задачи
 bd list           # Все задачи проекта
 bd stats          # Статистика
 ```

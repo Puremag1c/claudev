@@ -1,0 +1,243 @@
+#!/bin/bash
+# claudev CLI — управление многоагентной системой разработки
+#
+# Использование:
+#   claudev init      Инициализация проекта + запуск orchestrator
+#   claudev start     Запуск orchestrator (если уже инициализирован)
+#   claudev status    Статус проекта
+#   claudev update    Обновление claudev
+
+set -euo pipefail
+
+CLAUDEV_HOME="${CLAUDEV_HOME:-$HOME/.claudev}"
+VERSION=$(cat "$CLAUDEV_HOME/VERSION" 2>/dev/null || echo "dev")
+
+# === Colors ===
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+info()    { echo -e "${BLUE}▸${NC} $1"; }
+success() { echo -e "${GREEN}✓${NC} $1"; }
+warn()    { echo -e "${YELLOW}!${NC} $1"; }
+error()   { echo -e "${RED}✗${NC} $1" >&2; }
+
+# === Dependency check ===
+
+check_deps() {
+    local missing=()
+
+    command -v bd &>/dev/null || missing+=("beads (bd)")
+    command -v claude &>/dev/null || missing+=("claude-code")
+    command -v gh &>/dev/null || missing+=("gh")
+    command -v jq &>/dev/null || missing+=("jq")
+
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        error "Missing dependencies: ${missing[*]}"
+        echo ""
+        echo "Install with:"
+        echo "  curl -fsSL https://raw.githubusercontent.com/Puremag1c/claudev/main/install.sh | bash"
+        exit 1
+    fi
+}
+
+# === Init ===
+
+cmd_init() {
+    info "Initializing claudev in $(pwd)"
+
+    check_deps
+
+    # Git
+    if [[ ! -d ".git" ]]; then
+        info "Initializing git..."
+        git init -q
+        success "git init"
+    else
+        success "git already initialized"
+    fi
+
+    # Beads
+    if [[ ! -d ".beads" ]]; then
+        info "Initializing beads..."
+        bd init
+        success "bd init"
+    else
+        success "beads already initialized"
+    fi
+
+    # .claudev/config.sh
+    mkdir -p .claudev
+    if [[ ! -f ".claudev/config.sh" ]]; then
+        info "Creating config..."
+        cp "$CLAUDEV_HOME/templates/config.template.sh" .claudev/config.sh
+        success "Created .claudev/config.sh"
+    else
+        success ".claudev/config.sh exists"
+    fi
+
+    # Symlinks
+    mkdir -p .claude
+
+    if [[ ! -L ".claude/agents" ]]; then
+        ln -sf "$CLAUDEV_HOME/core/agents" .claude/agents
+        success "Linked .claude/agents"
+    fi
+
+    if [[ ! -L ".claude/commands" ]]; then
+        ln -sf "$CLAUDEV_HOME/core/commands" .claude/commands
+        success "Linked .claude/commands"
+    fi
+
+    if [[ ! -L "scripts" ]]; then
+        ln -sf "$CLAUDEV_HOME/core/scripts" scripts
+        success "Linked scripts/"
+    fi
+
+    # .claude/settings.json
+    if [[ ! -f ".claude/settings.json" ]]; then
+        info "Creating Claude Code settings..."
+        cat > .claude/settings.json << 'EOF'
+{
+  "permissions": {
+    "allow": [
+      "Bash(bd *)",
+      "Bash(git *)",
+      "Bash(gh *)",
+      "Bash(./scripts/*)"
+    ],
+    "deny": []
+  }
+}
+EOF
+        success "Created .claude/settings.json"
+    else
+        success ".claude/settings.json exists"
+    fi
+
+    # .gitignore
+    if [[ -f ".gitignore" ]]; then
+        if ! grep -q "logs/" .gitignore 2>/dev/null; then
+            info "Updating .gitignore..."
+            cat >> .gitignore << 'EOF'
+
+# Claudev
+logs/
+stats/
+.claudev/*.lock
+EOF
+            success "Updated .gitignore"
+        fi
+    else
+        info "Creating .gitignore..."
+        cat > .gitignore << 'EOF'
+# Claudev
+logs/
+stats/
+.claudev/*.lock
+EOF
+        success "Created .gitignore"
+    fi
+
+    echo ""
+    success "Project initialized!"
+    echo ""
+    info "Starting orchestrator..."
+    echo ""
+
+    exec "$CLAUDEV_HOME/core/scripts/orchestrator.sh"
+}
+
+# === Start ===
+
+cmd_start() {
+    if [[ ! -d ".claudev" ]]; then
+        error "Not a claudev project. Run 'claudev init' first."
+        exit 1
+    fi
+
+    check_deps
+
+    info "Starting orchestrator..."
+    exec "$CLAUDEV_HOME/core/scripts/orchestrator.sh"
+}
+
+# === Status ===
+
+cmd_status() {
+    if [[ ! -d ".claudev" ]]; then
+        error "Not a claudev project."
+        exit 1
+    fi
+
+    echo "claudev $VERSION"
+    echo ""
+
+    # Orchestrator status
+    local lock_file=".claudev/orchestrator.lock"
+    if [[ -f "$lock_file" ]]; then
+        local pid=$(cat "$lock_file" 2>/dev/null || echo "0")
+        if kill -0 "$pid" 2>/dev/null; then
+            success "Orchestrator running (PID $pid)"
+        else
+            warn "Stale lock file (PID $pid not found)"
+        fi
+    else
+        info "Orchestrator not running"
+    fi
+
+    echo ""
+
+    # Beads stats
+    if command -v bd &>/dev/null && [[ -d ".beads" ]]; then
+        bd stats 2>/dev/null || true
+    fi
+}
+
+# === Update ===
+
+cmd_update() {
+    info "Updating claudev..."
+
+    if [[ -d "$CLAUDEV_HOME/.git" ]]; then
+        cd "$CLAUDEV_HOME"
+        git pull --ff-only
+        success "Updated to $(cat VERSION)"
+    else
+        warn "Not a git installation, re-run install.sh"
+    fi
+}
+
+# === Help ===
+
+cmd_help() {
+    echo "claudev $VERSION — multi-agent development system"
+    echo ""
+    echo "Usage: claudev <command>"
+    echo ""
+    echo "Commands:"
+    echo "  init      Initialize project and start orchestrator"
+    echo "  start     Start orchestrator (project must be initialized)"
+    echo "  status    Show project and orchestrator status"
+    echo "  update    Update claudev to latest version"
+    echo ""
+    echo "Home: $CLAUDEV_HOME"
+}
+
+# === Main ===
+
+case "${1:-}" in
+    init)   cmd_init ;;
+    start)  cmd_start ;;
+    status) cmd_status ;;
+    update) cmd_update ;;
+    -h|--help|help|"") cmd_help ;;
+    *)
+        error "Unknown command: $1"
+        cmd_help
+        exit 1
+        ;;
+esac
