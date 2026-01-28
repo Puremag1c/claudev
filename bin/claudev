@@ -44,12 +44,48 @@ check_deps() {
     fi
 }
 
+# === Project Type Detection ===
+
+detect_project_type() {
+    # Check for existing SPEC.md
+    if [[ -f "SPEC.md" ]]; then
+        echo "has_spec"
+        return
+    fi
+
+    # Check for code files
+    local has_code=false
+
+    # Common code file patterns
+    for pattern in "*.ts" "*.tsx" "*.js" "*.jsx" "*.py" "*.ex" "*.exs" "*.go" "*.rs" "*.java" "*.rb"; do
+        if compgen -G "$pattern" > /dev/null 2>&1 || compgen -G "src/$pattern" > /dev/null 2>&1; then
+            has_code=true
+            break
+        fi
+    done
+
+    # Check for project manifest files (indicates existing project)
+    if [[ -f "package.json" ]] || [[ -f "mix.exs" ]] || [[ -f "go.mod" ]] || \
+       [[ -f "Cargo.toml" ]] || [[ -f "pyproject.toml" ]] || [[ -f "requirements.txt" ]]; then
+        has_code=true
+    fi
+
+    if [[ "$has_code" = true ]]; then
+        echo "existing"
+    else
+        echo "empty"
+    fi
+}
+
 # === Init ===
 
 cmd_init() {
     info "Initializing claudev in $(pwd)"
 
     check_deps
+
+    # Detect project type BEFORE init
+    local project_type=$(detect_project_type)
 
     # Git
     if [[ ! -d ".git" ]]; then
@@ -128,6 +164,7 @@ EOF
 logs/
 stats/
 .claudev/*.lock
+PROJECT_CONTEXT.md
 EOF
             success "Updated .gitignore"
         fi
@@ -138,9 +175,29 @@ EOF
 logs/
 stats/
 .claudev/*.lock
+PROJECT_CONTEXT.md
 EOF
         success "Created .gitignore"
     fi
+
+    # Handle project type
+    echo ""
+    case "$project_type" in
+        has_spec)
+            success "Found SPEC.md - will skip to PLANNING phase"
+            ;;
+        existing)
+            info "Detected existing project, analyzing..."
+            "$CLAUDEV_HOME/core/scripts/analyze-project.sh"
+            success "Created PROJECT_CONTEXT.md"
+            ;;
+        empty)
+            info "Empty project - Tech Writer will gather requirements"
+            ;;
+    esac
+
+    # Save project type for orchestrator
+    echo "$project_type" > .claudev/project_type
 
     echo ""
     success "Project initialized!"
@@ -211,6 +268,110 @@ cmd_update() {
     fi
 }
 
+# === Delete ===
+
+cmd_delete() {
+    if [[ ! -d ".claudev" ]]; then
+        error "Not a claudev project."
+        exit 1
+    fi
+
+    echo "This will remove claudev from the current project."
+    echo ""
+    echo "Will delete:"
+    echo "  - .claudev/          (config, lock files)"
+    echo "  - .claude/agents     (symlink)"
+    echo "  - .claude/commands   (symlink)"
+    echo "  - .claude/settings.json"
+    echo "  - scripts/           (symlink)"
+    echo "  - logs/"
+    echo "  - stats/"
+    echo ""
+    echo "Will NOT touch:"
+    echo "  - .beads/            (your project data)"
+    echo "  - .git/"
+    echo "  - SPEC.md"
+    echo "  - Your code"
+    echo ""
+
+    read -p "Continue? (y/N) " -n 1 -r
+    echo ""
+
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        info "Cancelled."
+        exit 0
+    fi
+
+    # Stop orchestrator if running
+    local lock_file=".claudev/orchestrator.lock"
+    if [[ -f "$lock_file" ]]; then
+        local pid=$(cat "$lock_file" 2>/dev/null || echo "0")
+        if kill -0 "$pid" 2>/dev/null; then
+            info "Stopping orchestrator (PID $pid)..."
+            kill "$pid" 2>/dev/null || true
+            sleep 1
+        fi
+    fi
+
+    # Remove claudev files
+    local deleted=()
+
+    if [[ -d ".claudev" ]]; then
+        rm -rf .claudev
+        deleted+=(".claudev/")
+    fi
+
+    if [[ -L ".claude/agents" ]]; then
+        rm -f .claude/agents
+        deleted+=(".claude/agents")
+    fi
+
+    if [[ -L ".claude/commands" ]]; then
+        rm -f .claude/commands
+        deleted+=(".claude/commands")
+    fi
+
+    if [[ -f ".claude/settings.json" ]]; then
+        rm -f .claude/settings.json
+        deleted+=(".claude/settings.json")
+    fi
+
+    # Remove .claude if empty
+    if [[ -d ".claude" ]] && [[ -z "$(ls -A .claude 2>/dev/null)" ]]; then
+        rmdir .claude
+        deleted+=(".claude/")
+    fi
+
+    if [[ -L "scripts" ]]; then
+        rm -f scripts
+        deleted+=("scripts/")
+    fi
+
+    if [[ -d "logs" ]]; then
+        rm -rf logs
+        deleted+=("logs/")
+    fi
+
+    if [[ -d "stats" ]]; then
+        rm -rf stats
+        deleted+=("stats/")
+    fi
+
+    # Clean up PROJECT_CONTEXT.md if exists
+    if [[ -f "PROJECT_CONTEXT.md" ]]; then
+        rm -f PROJECT_CONTEXT.md
+        deleted+=("PROJECT_CONTEXT.md")
+    fi
+
+    echo ""
+    success "Claudev removed from project"
+    echo ""
+    echo "Deleted:"
+    for item in "${deleted[@]}"; do
+        echo "  - $item"
+    done
+}
+
 # === Help ===
 
 cmd_help() {
@@ -223,6 +384,7 @@ cmd_help() {
     echo "  start     Start orchestrator (project must be initialized)"
     echo "  status    Show project and orchestrator status"
     echo "  update    Update claudev to latest version"
+    echo "  delete    Remove claudev from project (keeps .beads, code)"
     echo ""
     echo "Home: $CLAUDEV_HOME"
 }
@@ -234,6 +396,7 @@ case "${1:-}" in
     start)  cmd_start ;;
     status) cmd_status ;;
     update) cmd_update ;;
+    delete) cmd_delete ;;
     -h|--help|help|"") cmd_help ;;
     *)
         error "Unknown command: $1"

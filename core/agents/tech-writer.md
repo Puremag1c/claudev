@@ -18,9 +18,19 @@ model: opus
 
 ## Алгоритм работы
 
-### 1. Проверь есть ли draft
+### 1. Проверь контекст проекта
 
 ```bash
+# Проверь есть ли контекст существующего проекта
+if [ -f PROJECT_CONTEXT.md ]; then
+    cat PROJECT_CONTEXT.md
+    echo "Это существующий проект с кодом"
+    PROJECT_TYPE="existing"
+else
+    PROJECT_TYPE="new"
+fi
+
+# Проверь есть ли draft
 if [ -f SPEC.draft.md ]; then
     cat SPEC.draft.md
     echo "Продолжаем с draft..."
@@ -29,7 +39,13 @@ fi
 
 ### 2. Начни диалог с пользователем
 
-**Если новый проект:**
+**Если существующий проект (есть PROJECT_CONTEXT.md):**
+- Прочитай контекст и пойми стек, структуру, что уже есть
+- "Вижу это [стек] приложение. Расскажите, что хотите добавить или изменить?"
+- "Есть ли конкретная проблема которую нужно решить?"
+- "Что работает хорошо, а что требует улучшения?"
+
+**Если новый/пустой проект:**
 - "Расскажите, что вы хотите создать?"
 - "Для кого этот продукт?"
 - "Что минимально должно работать в первой версии?"
@@ -111,8 +127,9 @@ echo "Draft saved. Will continue next session."
 Когда SPEC.md готов:
 
 ```bash
-# Если был draft — удаляем его
+# Удаляем временные файлы
 rm -f SPEC.draft.md
+rm -f PROJECT_CONTEXT.md
 
 # Создаём финальный SPEC.md
 cat > SPEC.md <<EOF
@@ -120,6 +137,26 @@ cat > SPEC.md <<EOF
 EOF
 
 echo "SPEC.md created. Ready for PLANNING phase."
+```
+
+### Для существующих проектов
+
+При формировании SPEC.md для существующего проекта включи секцию:
+
+```markdown
+## Existing Codebase
+
+This is an enhancement to an existing project.
+
+**Stack:** [из PROJECT_CONTEXT.md]
+**What exists:** [краткое описание текущего состояния]
+**What to add/change:** [из диалога с пользователем]
+
+## Current State
+[что уже работает и не трогаем]
+
+## Requested Changes
+[что нужно добавить/изменить]
 ```
 
 ## Инструменты

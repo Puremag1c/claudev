@@ -241,34 +241,57 @@ CI/CD GitHub (опционально)
 
 ## Текущий статус
 
-**Статус:** v0.5.5 ГОТОВ, v0.6 В РАЗРАБОТКЕ (27 января 2026)
+**Статус:** v0.7 ГОТОВ (28 января 2026)
 
-### v0.5.5 (текущий)
-
-Все 52 задачи закрыты. Ядро системы готово.
-
-**Реализовано:**
-- ✅ core/agents/ — 10 промптов агентов (Tech Writer, Manager, Architect, Executor, Senior Executor, 5 Analysts)
-- ✅ core/scripts/ — orchestrator.sh, detect-phase.sh, run-executors.sh, run-analysts.sh, close-completed-parents.sh, log.sh
-- ✅ templates/ — config.template.sh, SPEC.template.md, CLAUDE.template.md
-- ✅ install.sh — dependency check, git init, beads init, pre-commit hook, .gitignore
-- ✅ docs/architecture.md — полная документация
-
-**Архитектурный аудит:**
-- ✅ Первое прохождение (23 января): 10 угроз → решения #11-#20
-- ✅ Второе прохождение (24 января): 9 угроз → решения #21-#25
-- ✅ Все P0 блокеры закрыты (config validation, backpressure)
-
-### v0.6 (в разработке)
+### v0.6
 
 **Цель:** Глобальная установка + `claudev init` в любом проекте.
 
-**Epic:** claudev-g9z — задачи в `bd list --status=open`
+**Epic:** claudev-g9z — ЗАКРЫТ
 
-**Ключевые изменения:**
-1. install.sh → глобальная установка в ~/.claudev/
-2. claudev CLI (init, start, status, update)
-3. Поддержка существующих проектов с кодом
+**Реализовано:**
+- ✅ install.sh — глобальная установка в ~/.claudev/, brew/apt, зависимости
+- ✅ bin/claudev — CLI wrapper (init, start, status, update)
+- ✅ orchestrator.sh — atomic lock, config validation, phase dispatcher
+- ✅ detect-phase.sh — milestones через labels, cycles check
+- ✅ run-executors.sh — backpressure через beads (не gh)
+- ✅ templates/ — config.template.sh, SPEC.template.md, CLAUDE.template.md
+
+### v0.7 (текущий)
+
+**Цель:** Поддержка существующих проектов + команда delete.
+
+**Epic:** claudev-avb — ЗАКРЫТ
+
+**Реализовано:**
+- ✅ `claudev delete` — корректное удаление claudev из проекта
+- ✅ analyze-project.sh — анализ существующего кода (стек, структура)
+- ✅ deep-analyze.sh + analyzer.md — глубокий анализ через Claude (для больших проектов)
+- ✅ Обновление tech-writer.md для работы с существующими проектами
+- ✅ Определение типа проекта при init (empty/existing/has_spec)
+
+**Новые файлы:**
+- `core/scripts/analyze-project.sh` — быстрый анализ стека и структуры
+- `core/scripts/deep-analyze.sh` — глубокий анализ через Claude (опционально)
+- `core/agents/analyzer.md` — промпт для глубокого анализа
+
+**Команда `claudev delete`:**
+```
+Удаляет:
+├── .claudev/           # config, lock
+├── .claude/agents      # симлинк
+├── .claude/commands    # симлинк
+├── .claude/settings.json
+├── scripts             # симлинк
+├── logs/
+└── stats/
+
+НЕ трогает:
+├── .beads/             # данные проекта
+├── .git/
+├── SPEC.md
+└── код проекта
+```
 
 **Сценарии после `claudev init`:**
 
