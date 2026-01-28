@@ -197,10 +197,12 @@ main
 ## Установка
 
 ```bash
+# Глобальная установка (один раз)
+curl -fsSL https://raw.githubusercontent.com/Puremag1c/claudev/main/install.sh | bash
+
+# В любом проекте
 cd your-project
-git clone <claudev-repo> .claudev
-.claudev/install.sh
-./scripts/orchestrator.sh
+claudev init
 ```
 
 ## Зависимости
