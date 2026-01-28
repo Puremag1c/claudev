@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.7.3] - WIP
+
+**Epic:** claudev-h9q — Onboarding improvements
+
+### Planned
+- **claudev-260**: Auto-start beads daemon в `claudev init`
+  - Проверка `bd daemon status`, автозапуск если не работает
+  - Пользователю не нужно вручную запускать daemon
+- **claudev-0ss**: GitHub onboarding flow в `claudev init`
+  - Проверка `gh auth status`
+  - Помощь с авторизацией (`gh auth login`)
+  - Предложение создать repo (`gh repo create`) если нет remote
+  - Graceful fallback на локальную работу без GitHub
+- **claudev-06l**: Conditional gitleaks recommendation
+  - Рекомендация gitleaks только при наличии GitHub remote
+  - Локальные проекты не получают навязчивых предупреждений
+
+---
+
 ## [0.7.2] - 2026-01-28
 
 ### Added

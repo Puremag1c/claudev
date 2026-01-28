@@ -241,23 +241,25 @@ CI/CD GitHub (опционально)
 
 ## Текущий статус
 
-**Статус:** v0.7.2 ГОТОВ К ПЕРВЫМ ЗАПУСКАМ (28 января 2026)
+**Статус:** v0.7.3 В РАЗРАБОТКЕ (28 января 2026)
 
-**Архитектурный аудит пройден:**
+**Архитектурный аудит пройден (v0.7.2):**
 - ✅ Синтаксис всех bash скриптов — OK
 - ✅ Все файлы агентов существуют (11 шт)
 - ✅ Все скрипты существуют (10 шт)
 - ✅ Beads CLI совместимость проверена
 - ✅ Execution paths протрассированы
 
-### v0.8 (следующий)
+### v0.7.3 (текущий)
 
 **Цель:** Улучшение onboarding для непрограммистов.
 
+**Epic:** claudev-h9q — В РАБОТЕ
+
 **Задачи:**
 - [ ] claudev-260 [P1] — Auto-start beads daemon в claudev init
-- [ ] claudev-0ss [P1] — GitHub onboarding flow (авторизация, создание repo)
-- [ ] claudev-06l [P2] — Conditional gitleaks recommendation
+- [ ] claudev-0ss [P1/feature] — GitHub onboarding flow (авторизация, создание repo)
+- [ ] claudev-06l [P2] — Conditional gitleaks recommendation (зависит от claudev-0ss)
 
 **GitHub onboarding flow:**
 ```
