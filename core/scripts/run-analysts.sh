@@ -101,7 +101,7 @@ main() {
     for analyst in "${ANALYSTS[@]}"; do
         if ! bd list --json 2>/dev/null | jq -e ".[] | select(.title == \"run-analyst-$analyst\")" > /dev/null 2>&1; then
             log "WARN" "Trigger task run-analyst-$analyst not found"
-            ((missing++))
+            ((missing++)) || true
         fi
     done
 
