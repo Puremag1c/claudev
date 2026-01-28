@@ -84,6 +84,15 @@ cmd_init() {
 
     check_deps
 
+    # Beads daemon (auto-start if not running)
+    if ! bd daemon status &>/dev/null; then
+        info "Starting beads daemon..."
+        bd daemon start &>/dev/null
+        success "beads daemon started"
+    else
+        success "beads daemon running"
+    fi
+
     # Detect project type BEFORE init
     local project_type=$(detect_project_type)
 
@@ -217,6 +226,13 @@ cmd_start() {
     fi
 
     check_deps
+
+    # Beads daemon (auto-start if not running)
+    if ! bd daemon status &>/dev/null; then
+        info "Starting beads daemon..."
+        bd daemon start &>/dev/null
+        success "beads daemon started"
+    fi
 
     info "Starting orchestrator..."
     exec "$CLAUDEV_HOME/core/scripts/orchestrator.sh"
