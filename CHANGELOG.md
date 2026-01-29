@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.8.1] - 2026-01-29
+
+### Fixed
+- **PATH configuration**: Added `~/.local/bin` to PATH (Claude Code installation directory)
+  - Previously only `~/.claudev/bin` was added, causing "Claude Code NOT INSTALLED" verification failure
+
+### Improved
+- **Claude Code installation**: Graceful error handling if network fails
+  - Shows manual installation link instead of blocking
+  - Verification treats Claude Code as optional (warn instead of error)
+
+---
+
 ## [0.8.0] - 2026-01-28
 
 ### Milestone: Ready for Production

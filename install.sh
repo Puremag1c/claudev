@@ -117,8 +117,12 @@ install_beads_linux() {
 install_claude_code() {
     if ! command -v claude &>/dev/null; then
         info "Installing Claude Code..."
-        curl -fsSL https://claude.ai/install.sh | bash
-        success "Claude Code installed"
+        if curl -fsSL https://claude.ai/install.sh | bash; then
+            success "Claude Code installed"
+        else
+            warn "Claude Code installation failed (network issue?)"
+            echo "  Install manually: https://claude.ai/download"
+        fi
     else
         success "Claude Code already installed"
     fi
@@ -266,9 +270,15 @@ check_cmd() {
 
 check_cmd "claudev" "claudev CLI"
 check_cmd "bd" "beads"
-check_cmd "claude" "Claude Code"
 check_cmd "gh" "GitHub CLI"
 check_cmd "jq" "jq"
+
+# Claude Code is optional (may fail due to network)
+if command -v claude &>/dev/null; then
+    success "Claude Code"
+else
+    warn "Claude Code (not installed - install manually: https://claude.ai/download)"
+fi
 
 if command -v gitleaks &>/dev/null; then
     success "gitleaks (optional)"
