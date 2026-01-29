@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.3] - 2026-01-29
+
+### Added
+- **Fish shell support**: PATH configuration now works with fish (`~/.config/fish/config.fish`)
+  - Uses `fish_add_path` for proper fish syntax
+
+---
+
 ## [0.8.2] - 2026-01-29
 
 ### Fixed

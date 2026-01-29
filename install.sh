@@ -239,10 +239,42 @@ add_to_path() {
     fi
 }
 
+# Fish shell uses different syntax
+add_to_fish_path() {
+    local fish_config="$HOME/.config/fish/config.fish"
+
+    if [[ -f "$fish_config" ]]; then
+        local changed=false
+
+        if ! grep -q '.claudev/bin' "$fish_config"; then
+            echo "" >> "$fish_config"
+            echo "# Claudev" >> "$fish_config"
+            echo 'fish_add_path $HOME/.claudev/bin' >> "$fish_config"
+            changed=true
+        fi
+
+        if ! grep -q '.local/bin' "$fish_config"; then
+            if [[ "$changed" == "false" ]]; then
+                echo "" >> "$fish_config"
+                echo "# Claudev" >> "$fish_config"
+            fi
+            echo 'fish_add_path $HOME/.local/bin' >> "$fish_config"
+            changed=true
+        fi
+
+        if [[ "$changed" == "true" ]]; then
+            success "Updated $fish_config"
+        else
+            success "Already configured in $fish_config"
+        fi
+    fi
+}
+
 # Add to all existing shell config files (don't guess - sudo may lose $SHELL)
 [[ -f "$HOME/.zshrc" ]] && add_to_path "$HOME/.zshrc"
 [[ -f "$HOME/.bashrc" ]] && add_to_path "$HOME/.bashrc"
 [[ -f "$HOME/.bash_profile" ]] && add_to_path "$HOME/.bash_profile"
+[[ -f "$HOME/.config/fish/config.fish" ]] && add_to_fish_path
 
 # Add to current session
 export PATH="$CLAUDEV_HOME/bin:$HOME/.local/bin:$PATH"
