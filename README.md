@@ -1,6 +1,6 @@
 # Claudev
 
-> v0.8.0 — ready for production
+> v0.9.0 — project upgrade mechanism
 
 Виртуальный отдел разработки на базе AI. Опишите что хотите — получите готовый продукт.
 
@@ -49,7 +49,9 @@ claudev init
 claudev init      # Инициализация проекта + запуск
 claudev start     # Запуск orchestrator
 claudev status    # Статус проекта
-claudev update    # Обновление claudev
+claudev update    # Обновление claudev (глобально)
+claudev upgrade   # Обновление текущего проекта
+claudev upgrade --all  # Обновление всех проектов
 claudev delete    # Удалить claudev из проекта (сохраняет код и .beads)
 ```
 

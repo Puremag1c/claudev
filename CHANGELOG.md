@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.9.0] - 2026-01-29
+
+### Milestone: Project Upgrade Mechanism
+
+Механизм обновления проектов, уже инициализированных через claudev.
+
+### Added
+
+- **Version tracking**: Сохранение версии claudev в `.claudev/version` при `init`
+  - Позволяет определить нужно ли обновление проекта
+
+- **`claudev upgrade` command**: Обновление текущего проекта до последней версии
+  - Обновление symlinks (.claude/agents, .claude/commands, scripts/)
+  - Merge стратегия для config.sh (сохраняет пользовательские изменения)
+  - Автоматическое добавление новых записей в .gitignore
+  - Поддержка migration scripts для версионных изменений
+
+- **`claudev upgrade --all`**: Обновление всех известных проектов
+  - Автоматический поиск в ~/Projects, ~/Code, ~/Dev, ~/Zen/Code, ~/work
+  - Поиск до 3 уровней вложенности
+  - `--force` флаг для принудительного обновления
+
+- **Migration scripts infrastructure**: Директория `migrations/` для версионных миграций
+  - Формат: `{from}-to-{to}.sh` (например `0.8.0-to-0.9.0.sh`)
+  - Автоматический запуск при upgrade
+
+### Fixed
+
+- **Fully automatic install.sh**: Установка без ручных шагов
+  - `retry()` функция с exponential backoff (3 попытки)
+  - Проверка сети перед началом установки
+  - Fallback методы для Claude Code (npm, альтернативные DNS)
+  - Graceful handling всех сетевых ошибок
+
+---
+
 ## [0.8.3] - 2026-01-29
 
 ### Added

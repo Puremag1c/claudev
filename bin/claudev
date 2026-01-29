@@ -289,6 +289,11 @@ cmd_init() {
 
     # .claudev/config.sh
     mkdir -p .claudev
+
+    # Save claudev version for upgrade detection
+    echo "$VERSION" > .claudev/version
+    success "Saved claudev version ($VERSION)"
+
     if [[ ! -f ".claudev/config.sh" ]]; then
         info "Creating config..."
         cp "$CLAUDEV_HOME/templates/config.template.sh" .claudev/config.sh
@@ -459,6 +464,191 @@ cmd_update() {
     fi
 }
 
+# === Upgrade ===
+
+cmd_upgrade() {
+    local upgrade_all=false
+    local force=false
+
+    # Parse flags
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --all) upgrade_all=true; shift ;;
+            --force|-f) force=true; shift ;;
+            *) shift ;;
+        esac
+    done
+
+    if [[ "$upgrade_all" = true ]]; then
+        upgrade_all_projects "$force"
+        return
+    fi
+
+    # Single project upgrade
+    if [[ ! -d ".claudev" ]]; then
+        error "Not a claudev project. Run 'claudev init' first."
+        exit 1
+    fi
+
+    upgrade_project "$(pwd)" "$force"
+}
+
+upgrade_project() {
+    local project_dir="$1"
+    local force="${2:-false}"
+
+    cd "$project_dir"
+
+    local project_version=$(cat .claudev/version 2>/dev/null || echo "unknown")
+
+    if [[ "$project_version" = "$VERSION" ]] && [[ "$force" != "true" ]]; then
+        success "Project already at version $VERSION"
+        return
+    fi
+
+    info "Upgrading $(basename "$project_dir"): $project_version → $VERSION"
+
+    # Run migrations if available
+    run_migrations "$project_version" "$VERSION"
+
+    # Update symlinks
+    if [[ -L ".claude/agents" ]]; then
+        rm -f .claude/agents
+        ln -sf "$CLAUDEV_HOME/core/agents" .claude/agents
+        success "Updated .claude/agents symlink"
+    fi
+
+    if [[ -L ".claude/commands" ]]; then
+        rm -f .claude/commands
+        ln -sf "$CLAUDEV_HOME/core/commands" .claude/commands
+        success "Updated .claude/commands symlink"
+    fi
+
+    if [[ -L "scripts" ]]; then
+        rm -f scripts
+        ln -sf "$CLAUDEV_HOME/core/scripts" scripts
+        success "Updated scripts/ symlink"
+    fi
+
+    # Update config.sh (merge strategy: keep user customizations)
+    if [[ -f ".claudev/config.sh" ]]; then
+        local template="$CLAUDEV_HOME/templates/config.template.sh"
+        if [[ -f "$template" ]]; then
+            # Check if user has customized the file
+            if diff -q "$template" ".claudev/config.sh" &>/dev/null; then
+                # Not customized, safe to replace
+                cp "$template" ".claudev/config.sh"
+                success "Updated .claudev/config.sh"
+            else
+                # User has customizations, keep them but warn
+                warn ".claudev/config.sh has customizations, keeping current version"
+                info "Template at: $template"
+            fi
+        fi
+    fi
+
+    # Update .gitignore entries
+    update_gitignore
+
+    # Update version marker
+    echo "$VERSION" > .claudev/version
+
+    success "Upgraded to $VERSION"
+}
+
+update_gitignore() {
+    if [[ ! -f ".gitignore" ]]; then
+        return
+    fi
+
+    local entries=("logs/" "stats/" ".claudev/*.lock" "PROJECT_CONTEXT.md" ".mcp.json")
+    local added=()
+
+    for entry in "${entries[@]}"; do
+        if ! grep -qF "$entry" .gitignore 2>/dev/null; then
+            echo "$entry" >> .gitignore
+            added+=("$entry")
+        fi
+    done
+
+    if [[ ${#added[@]} -gt 0 ]]; then
+        success "Added to .gitignore: ${added[*]}"
+    fi
+}
+
+run_migrations() {
+    local from_version="$1"
+    local to_version="$2"
+
+    local migrations_dir="$CLAUDEV_HOME/migrations"
+    if [[ ! -d "$migrations_dir" ]]; then
+        return
+    fi
+
+    # Find and run applicable migrations
+    for migration in "$migrations_dir"/*.sh; do
+        if [[ ! -f "$migration" ]]; then
+            continue
+        fi
+
+        local migration_name=$(basename "$migration" .sh)
+        # Migration names like: 0.8.0-to-0.9.0.sh
+        if [[ "$migration_name" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-to-([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            local migration_from="${BASH_REMATCH[1]}"
+            local migration_to="${BASH_REMATCH[2]}"
+
+            # Check if migration applies
+            if version_gte "$from_version" "$migration_from" && version_lt "$from_version" "$migration_to"; then
+                info "Running migration: $migration_name"
+                source "$migration"
+            fi
+        fi
+    done
+}
+
+# Version comparison helpers
+version_gte() {
+    [[ "$(printf '%s\n' "$1" "$2" | sort -V | head -n1)" = "$2" ]]
+}
+
+version_lt() {
+    [[ "$(printf '%s\n' "$1" "$2" | sort -V | head -n1)" = "$1" ]] && [[ "$1" != "$2" ]]
+}
+
+upgrade_all_projects() {
+    local force="${1:-false}"
+
+    info "Discovering claudev projects..."
+
+    local projects=()
+    local search_dirs=("$HOME/Projects" "$HOME/Code" "$HOME/Dev" "$HOME/Zen/Code" "$HOME/work")
+
+    for dir in "${search_dirs[@]}"; do
+        if [[ -d "$dir" ]]; then
+            while IFS= read -r -d '' project; do
+                projects+=("$(dirname "$project")")
+            done < <(find "$dir" -maxdepth 3 -type d -name ".claudev" -print0 2>/dev/null)
+        fi
+    done
+
+    if [[ ${#projects[@]} -eq 0 ]]; then
+        warn "No claudev projects found"
+        info "Searched in: ${search_dirs[*]}"
+        return
+    fi
+
+    success "Found ${#projects[@]} project(s)"
+    echo ""
+
+    for project in "${projects[@]}"; do
+        echo "━━━ $(basename "$project") ━━━"
+        upgrade_project "$project" "$force"
+        echo ""
+    done
+
+    success "All projects upgraded"
+}
+
 # === Delete ===
 
 cmd_delete() {
@@ -575,6 +765,9 @@ cmd_help() {
     echo "  start     Start orchestrator (project must be initialized)"
     echo "  status    Show project and orchestrator status"
     echo "  update    Update claudev to latest version"
+    echo "  upgrade   Upgrade current project to latest claudev version"
+    echo "            --all    Upgrade all discovered projects"
+    echo "            --force  Force upgrade even if versions match"
     echo "  delete    Remove claudev from project (keeps .beads, code)"
     echo ""
     echo "Home: $CLAUDEV_HOME"
@@ -587,6 +780,7 @@ case "${1:-}" in
     start)  cmd_start ;;
     status) cmd_status ;;
     update) cmd_update ;;
+    upgrade) shift; cmd_upgrade "$@" ;;
     delete) cmd_delete ;;
     -h|--help|help|"") cmd_help ;;
     *)

@@ -25,6 +25,43 @@ success() { echo -e "${GREEN}✓${NC} $1"; }
 warn()    { echo -e "${YELLOW}!${NC} $1"; }
 error()   { echo -e "${RED}✗${NC} $1" >&2; }
 
+# Retry with exponential backoff
+retry() {
+    local max_attempts=${RETRY_MAX:-3}
+    local delay=${RETRY_DELAY:-2}
+    local attempt=1
+    local exit_code=0
+
+    while [[ $attempt -le $max_attempts ]]; do
+        if "$@"; then
+            return 0
+        else
+            exit_code=$?
+        fi
+
+        if [[ $attempt -lt $max_attempts ]]; then
+            warn "Attempt $attempt failed, retrying in ${delay}s..."
+            sleep $delay
+            delay=$((delay * 2))
+        fi
+
+        attempt=$((attempt + 1))
+    done
+
+    return $exit_code
+}
+
+# Test network connectivity
+check_network() {
+    if curl -fsS --connect-timeout 5 https://github.com &>/dev/null; then
+        return 0
+    elif curl -fsS --connect-timeout 5 https://google.com &>/dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 echo ""
 echo "╔══════════════════════════════════════╗"
 echo "║       Claudev Global Installer       ║"
@@ -43,17 +80,29 @@ fi
 # === Функции установки ===
 
 install_homebrew() {
-    if ! command -v brew &>/dev/null; then
-        info "Installing Homebrew..."
-        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    if command -v brew &>/dev/null; then
+        return
+    fi
 
-        # Добавляем brew в PATH для текущей сессии
-        if [[ -f "/opt/homebrew/bin/brew" ]]; then
-            eval "$(/opt/homebrew/bin/brew shellenv)"
-        elif [[ -f "/usr/local/bin/brew" ]]; then
-            eval "$(/usr/local/bin/brew shellenv)"
+    info "Installing Homebrew..."
+
+    if retry curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh -o /tmp/brew-install.sh; then
+        if /bin/bash /tmp/brew-install.sh; then
+            rm -f /tmp/brew-install.sh
+
+            # Добавляем brew в PATH для текущей сессии
+            if [[ -f "/opt/homebrew/bin/brew" ]]; then
+                eval "$(/opt/homebrew/bin/brew shellenv)"
+            elif [[ -f "/usr/local/bin/brew" ]]; then
+                eval "$(/usr/local/bin/brew shellenv)"
+            fi
+            success "Homebrew installed"
+        else
+            rm -f /tmp/brew-install.sh
+            error "Homebrew installation failed"
         fi
-        success "Homebrew installed"
+    else
+        error "Could not download Homebrew installer"
     fi
 }
 
@@ -115,17 +164,46 @@ install_beads_linux() {
 }
 
 install_claude_code() {
-    if ! command -v claude &>/dev/null; then
-        info "Installing Claude Code..."
-        if curl -fsSL https://claude.ai/install.sh | bash; then
-            success "Claude Code installed"
-        else
-            warn "Claude Code installation failed (network issue?)"
-            echo "  Install manually: https://claude.ai/download"
-        fi
-    else
+    if command -v claude &>/dev/null; then
         success "Claude Code already installed"
+        return
     fi
+
+    info "Installing Claude Code..."
+
+    # Method 1: Official installer with retry
+    if retry curl -fsSL https://claude.ai/install.sh -o /tmp/claude-install.sh; then
+        if bash /tmp/claude-install.sh; then
+            rm -f /tmp/claude-install.sh
+            success "Claude Code installed"
+            return
+        fi
+        rm -f /tmp/claude-install.sh
+    fi
+
+    # Method 2: Try with different DNS (if primary fails)
+    info "Trying alternative method..."
+    if curl --dns-servers 8.8.8.8,1.1.1.1 -fsSL https://claude.ai/install.sh 2>/dev/null | bash; then
+        success "Claude Code installed"
+        return
+    fi
+
+    # Method 3: npm fallback (if available)
+    if command -v npm &>/dev/null; then
+        info "Trying npm install..."
+        if npm install -g @anthropic-ai/claude-code 2>/dev/null; then
+            success "Claude Code installed via npm"
+            return
+        fi
+    fi
+
+    # All methods failed
+    warn "Claude Code installation failed"
+    echo ""
+    echo "  Install manually:"
+    echo "    macOS: brew install --cask claude"
+    echo "    or:    https://claude.ai/download"
+    echo ""
 }
 
 # === Step 1: Install/Update claudev ===
@@ -133,23 +211,40 @@ install_claude_code() {
 echo "Step 1: Installing claudev to $CLAUDEV_HOME"
 echo ""
 
+# Check network before starting
+if ! check_network; then
+    error "No network connection. Please check your internet and try again."
+    exit 1
+fi
+
 if [[ -d "$CLAUDEV_HOME" ]]; then
     if [[ -d "$CLAUDEV_HOME/.git" ]]; then
         info "Updating existing installation..."
         cd "$CLAUDEV_HOME"
-        git pull --ff-only
-        success "Updated to $(cat VERSION)"
+        if retry git pull --ff-only; then
+            success "Updated to $(cat VERSION)"
+        else
+            warn "Update failed, using existing version"
+        fi
     else
         warn "$CLAUDEV_HOME exists but is not a git repo"
         info "Backing up and reinstalling..."
         mv "$CLAUDEV_HOME" "$CLAUDEV_HOME.backup.$(date +%s)"
-        git clone --depth 1 "$REPO_URL" "$CLAUDEV_HOME"
-        success "Installed $(cat "$CLAUDEV_HOME/VERSION")"
+        if retry git clone --depth 1 "$REPO_URL" "$CLAUDEV_HOME"; then
+            success "Installed $(cat "$CLAUDEV_HOME/VERSION")"
+        else
+            error "Failed to clone claudev repository"
+            exit 1
+        fi
     fi
 else
     info "Cloning claudev..."
-    git clone --depth 1 "$REPO_URL" "$CLAUDEV_HOME"
-    success "Installed $(cat "$CLAUDEV_HOME/VERSION")"
+    if retry git clone --depth 1 "$REPO_URL" "$CLAUDEV_HOME"; then
+        success "Installed $(cat "$CLAUDEV_HOME/VERSION")"
+    else
+        error "Failed to clone claudev repository"
+        exit 1
+    fi
 fi
 
 # === Step 2: Install dependencies ===
