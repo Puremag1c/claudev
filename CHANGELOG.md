@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.8.2] - 2026-01-29
+
+### Fixed
+- **Shell detection**: PATH now added to ALL existing shell configs (.zshrc, .bashrc, .bash_profile)
+  - Previous logic tried to detect shell via `$SHELL` variable, but `sudo bash` loses this
+  - Now: if config file exists, add PATH to it (no guessing)
+
+---
+
 ## [0.8.1] - 2026-01-29
 
 ### Fixed

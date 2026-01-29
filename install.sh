@@ -239,13 +239,10 @@ add_to_path() {
     fi
 }
 
-# Detect shell and add to appropriate rc file
-if [[ -n "${ZSH_VERSION:-}" ]] || [[ "$SHELL" == *"zsh"* ]]; then
-    add_to_path "$HOME/.zshrc"
-elif [[ -n "${BASH_VERSION:-}" ]] || [[ "$SHELL" == *"bash"* ]]; then
-    add_to_path "$HOME/.bashrc"
-    [[ -f "$HOME/.bash_profile" ]] && add_to_path "$HOME/.bash_profile"
-fi
+# Add to all existing shell config files (don't guess - sudo may lose $SHELL)
+[[ -f "$HOME/.zshrc" ]] && add_to_path "$HOME/.zshrc"
+[[ -f "$HOME/.bashrc" ]] && add_to_path "$HOME/.bashrc"
+[[ -f "$HOME/.bash_profile" ]] && add_to_path "$HOME/.bash_profile"
 
 # Add to current session
 export PATH="$CLAUDEV_HOME/bin:$HOME/.local/bin:$PATH"
