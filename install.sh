@@ -206,6 +206,48 @@ install_claude_code() {
     echo ""
 }
 
+# Install gh and jq directly (for Linux without sudo/brew)
+install_binaries_direct() {
+    mkdir -p "$HOME/.local/bin"
+
+    # Install jq
+    if ! command -v jq &>/dev/null; then
+        info "Downloading jq binary..."
+        local jq_url="https://github.com/jqlang/jq/releases/latest/download/jq-linux-amd64"
+        if curl -fsSL "$jq_url" -o "$HOME/.local/bin/jq"; then
+            chmod +x "$HOME/.local/bin/jq"
+            success "jq installed to ~/.local/bin/"
+        else
+            warn "Could not download jq"
+        fi
+    else
+        success "jq already installed"
+    fi
+
+    # Install gh
+    if ! command -v gh &>/dev/null; then
+        info "Downloading gh binary..."
+        # Get latest version
+        local gh_version=$(curl -fsSL https://api.github.com/repos/cli/cli/releases/latest | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')
+        if [[ -n "$gh_version" ]]; then
+            local gh_url="https://github.com/cli/cli/releases/download/v${gh_version}/gh_${gh_version}_linux_amd64.tar.gz"
+            if curl -fsSL "$gh_url" -o /tmp/gh.tar.gz; then
+                tar -xzf /tmp/gh.tar.gz -C /tmp
+                mv "/tmp/gh_${gh_version}_linux_amd64/bin/gh" "$HOME/.local/bin/"
+                chmod +x "$HOME/.local/bin/gh"
+                rm -rf /tmp/gh.tar.gz "/tmp/gh_${gh_version}_linux_amd64"
+                success "gh installed to ~/.local/bin/"
+            else
+                warn "Could not download gh"
+            fi
+        else
+            warn "Could not determine gh version"
+        fi
+    else
+        success "gh already installed"
+    fi
+}
+
 # === Step 1: Install/Update claudev ===
 
 echo "Step 1: Installing claudev to $CLAUDEV_HOME"
@@ -267,29 +309,65 @@ if [[ "$OS" == "macos" ]]; then
     fi
 
 elif [[ "$OS" == "linux" ]]; then
-    if command -v apt &>/dev/null; then
+    # Check if we have sudo access
+    has_sudo=false
+    if command -v sudo &>/dev/null && sudo -n true 2>/dev/null; then
+        has_sudo=true
+    fi
+
+    # Strategy: try apt with sudo, fallback to Homebrew, fallback to direct binaries
+    if [[ "$has_sudo" = true ]] && command -v apt &>/dev/null; then
+        info "Using apt (sudo available)..."
         sudo apt update -qq
         install_with_apt "gh"
         install_with_apt "jq"
-        install_beads_linux
-        install_claude_code
-
-        # gitleaks (try multiple methods, skip silently if none work)
-        if ! command -v gitleaks &>/dev/null; then
-            # Try snap first (most reliable on Ubuntu)
-            if command -v snap &>/dev/null; then
-                info "Installing gitleaks via snap..."
-                sudo snap install gitleaks 2>/dev/null && success "gitleaks installed" || true
-            # Try go install if available
-            elif command -v go &>/dev/null; then
-                info "Installing gitleaks via go..."
-                go install github.com/gitleaks/gitleaks/v8@latest 2>/dev/null && success "gitleaks installed" || true
-            fi
+    else
+        # No sudo - use Homebrew on Linux or direct binaries
+        if command -v brew &>/dev/null; then
+            info "Using Homebrew (no sudo)..."
+            install_with_brew "gh"
+            install_with_brew "jq"
         else
-            success "gitleaks already installed"
+            # Try to install Homebrew on Linux
+            info "Installing Homebrew for Linux (no sudo required)..."
+            if retry curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh -o /tmp/brew-install.sh; then
+                # Homebrew installer on Linux doesn't need sudo
+                NONINTERACTIVE=1 /bin/bash /tmp/brew-install.sh
+                rm -f /tmp/brew-install.sh
+
+                # Add to PATH
+                if [[ -d "/home/linuxbrew/.linuxbrew" ]]; then
+                    eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+                fi
+
+                if command -v brew &>/dev/null; then
+                    success "Homebrew installed"
+                    install_with_brew "gh"
+                    install_with_brew "jq"
+                else
+                    # Homebrew failed, try direct binary downloads
+                    install_binaries_direct
+                fi
+            else
+                install_binaries_direct
+            fi
+        fi
+    fi
+
+    install_beads_linux
+    install_claude_code
+
+    # gitleaks (optional, try without sudo)
+    if ! command -v gitleaks &>/dev/null; then
+        if command -v go &>/dev/null; then
+            info "Installing gitleaks via go..."
+            go install github.com/gitleaks/gitleaks/v8@latest 2>/dev/null && success "gitleaks installed" || true
+        elif [[ "$has_sudo" = true ]] && command -v snap &>/dev/null; then
+            info "Installing gitleaks via snap..."
+            sudo snap install gitleaks 2>/dev/null && success "gitleaks installed" || true
         fi
     else
-        warn "apt not found, install dependencies manually"
+        success "gitleaks already installed"
     fi
 else
     error "Unknown OS: $OSTYPE"
