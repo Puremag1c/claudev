@@ -205,16 +205,32 @@ echo ""
 
 add_to_path() {
     local shell_rc=$1
-    local path_line='export PATH="$HOME/.claudev/bin:$PATH"'
 
     if [[ -f "$shell_rc" ]]; then
+        local changed=false
+
+        # Add ~/.claudev/bin
         if ! grep -q '.claudev/bin' "$shell_rc"; then
             echo "" >> "$shell_rc"
             echo "# Claudev" >> "$shell_rc"
-            echo "$path_line" >> "$shell_rc"
-            success "Added to $shell_rc"
+            echo 'export PATH="$HOME/.claudev/bin:$PATH"' >> "$shell_rc"
+            changed=true
+        fi
+
+        # Add ~/.local/bin (for Claude Code)
+        if ! grep -q '.local/bin' "$shell_rc"; then
+            if [[ "$changed" == "false" ]]; then
+                echo "" >> "$shell_rc"
+                echo "# Claudev" >> "$shell_rc"
+            fi
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$shell_rc"
+            changed=true
+        fi
+
+        if [[ "$changed" == "true" ]]; then
+            success "Updated $shell_rc"
         else
-            success "Already in $shell_rc"
+            success "Already configured in $shell_rc"
         fi
     fi
 }
@@ -228,7 +244,7 @@ elif [[ -n "${BASH_VERSION:-}" ]] || [[ "$SHELL" == *"bash"* ]]; then
 fi
 
 # Add to current session
-export PATH="$CLAUDEV_HOME/bin:$PATH"
+export PATH="$CLAUDEV_HOME/bin:$HOME/.local/bin:$PATH"
 
 # === Step 4: Verify ===
 
