@@ -39,7 +39,8 @@ get_count() {
 
 has_label() {
     local label=$1
-    bd list --json 2>/dev/null | jq "[.[] | select(.labels[]? == \"$label\")] | length" 2>/dev/null || echo "0"
+    # Milestones are closed immediately, so check closed tasks
+    bd list --status=closed --json 2>/dev/null | jq "[.[] | select(.labels[]? == \"$label\")] | length" 2>/dev/null || echo "0"
 }
 
 has_open_task() {
