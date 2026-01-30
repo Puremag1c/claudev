@@ -31,7 +31,7 @@ TASK_ID="${TASK_ID}"  # Из контекста
 bd show $TASK_ID
 
 # Извлекаем title для эскалации (если понадобится)
-TASK_TITLE=$(bd show $TASK_ID --format=json | jq -r '.title')
+TASK_TITLE=$(bd show $TASK_ID --json | jq -r '.[0].title')
 ```
 
 ### 2. Создай ветку (идемпотентно)

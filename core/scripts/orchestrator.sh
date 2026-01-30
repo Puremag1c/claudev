@@ -136,7 +136,7 @@ cleanup() {
     # Reset stale in_progress tasks (>5min old)
     for task_id in $(bd list --status=in_progress --json 2>/dev/null | jq -r '.[].id' 2>/dev/null || true); do
         local updated_at
-        updated_at=$(bd show "$task_id" --json 2>/dev/null | jq -r '.updated_at' 2>/dev/null || echo "")
+        updated_at=$(bd show "$task_id" --json 2>/dev/null | jq -r '.[0].updated_at' 2>/dev/null || echo "")
         if [ -n "$updated_at" ]; then
             local claimed_epoch now_epoch age
             # Strip milliseconds and timezone for cross-platform parsing
@@ -354,7 +354,7 @@ check_stale_tasks() {
 
     for task_id in $(bd list --status=in_progress --json 2>/dev/null | jq -r '.[].id' 2>/dev/null || true); do
         local updated_at
-        updated_at=$(bd show "$task_id" --json 2>/dev/null | jq -r '.updated_at' 2>/dev/null || echo "")
+        updated_at=$(bd show "$task_id" --json 2>/dev/null | jq -r '.[0].updated_at' 2>/dev/null || echo "")
 
         if [ -n "$updated_at" ]; then
             local task_epoch now_epoch age

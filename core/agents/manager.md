@@ -26,7 +26,7 @@ model: sonnet
 ### 1. Получи детали задачи
 
 ```bash
-bd show <task_id> --format=json
+bd show <task_id> --json
 ```
 
 ### 2. Определи причину блокировки
@@ -42,7 +42,7 @@ bd show <task_id> --format=json
 **blocked:dependency:**
 ```bash
 # Проверь статус зависимости
-bd show <dependency_id> --format=json | jq '.status'
+bd show <dependency_id> --json | jq '.[0].status'
 
 # Если closed — разблокируй
 bd update <task_id> --status=open --remove-label=blocked:dependency --notes="Unblocked: dependency closed"
@@ -73,7 +73,7 @@ bd close <task_id> --reason="Escalation limit reached, closing as unresolvable"
 ### 1. Прочитай notes задачи
 
 ```bash
-bd show <task_id> --format=json | jq '.notes'
+bd show <task_id> --json | jq '.[0].notes'
 ```
 
 ### 2. Определи паттерн сбоя

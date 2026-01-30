@@ -56,7 +56,7 @@ run_executor() {
 
     # Check task status before claim (avoid race condition confusion)
     local current_status
-    current_status=$(bd show "$task_id" --json 2>/dev/null | jq -r '.status // "unknown"' 2>/dev/null)
+    current_status=$(bd show "$task_id" --json 2>/dev/null | jq -r '.[0].status // "unknown"' 2>/dev/null)
 
     if [ "$current_status" != "open" ]; then
         log "INFO" "Task $task_id not open (status: $current_status), skipping"
@@ -71,14 +71,14 @@ run_executor() {
 
     # Get task details
     local task_json
-    task_json=$(bd show "$task_id" --json 2>/dev/null || echo "{}")
+    task_json=$(bd show "$task_id" --json 2>/dev/null || echo "[]")
 
     local task_title
-    task_title=$(echo "$task_json" | jq -r '.title // "Unknown"')
+    task_title=$(echo "$task_json" | jq -r '.[0].title // "Unknown"')
 
     # Get model from label (fallback: sonnet with warning)
     local model
-    model=$(echo "$task_json" | jq -r '.labels[]? | select(startswith("model:")) | split(":")[1]' 2>/dev/null | head -1)
+    model=$(echo "$task_json" | jq -r '.[0].labels[]? | select(startswith("model:")) | split(":")[1]' 2>/dev/null | head -1)
     if [ -z "$model" ]; then
         log "WARN" "Task $task_id has no model: label, using fallback sonnet"
         model="sonnet"
@@ -104,12 +104,12 @@ PROJECT_ROOT: $PROJECT_DIR"
             log "WARN" "Executor timeout for $task_id"
             # Increment retry counter (take max if multiple exist, remove old label)
             local current_retry old_retry_label
-            current_retry=$(echo "$task_json" | jq -r '[.labels[]? | select(startswith("retry:")) | split(":")[1] | tonumber] | max // 0' 2>/dev/null)
+            current_retry=$(echo "$task_json" | jq -r '[.[0].labels[]? | select(startswith("retry:")) | split(":")[1] | tonumber] | max // 0' 2>/dev/null)
             current_retry="${current_retry:-0}"
             local new_retry=$((current_retry + 1))
 
             # Remove old retry label if exists, add new one
-            old_retry_label=$(echo "$task_json" | jq -r '.labels[]? | select(startswith("retry:"))' 2>/dev/null | head -1)
+            old_retry_label=$(echo "$task_json" | jq -r '.[0].labels[]? | select(startswith("retry:"))' 2>/dev/null | head -1)
             if [ -n "$old_retry_label" ]; then
                 bd update "$task_id" --status=open --remove-label=executor --remove-label="$old_retry_label" --add-label="retry:$new_retry" --notes="Timeout at $(date '+%Y-%m-%d %H:%M:%S')" 2>/dev/null || true
             else

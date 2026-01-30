@@ -35,7 +35,7 @@ model: sonnet
 ### 1. Прочитай план
 
 ```bash
-bd list --format=json | jq '.[] | {id, title, description}'
+bd list --json | jq '.[] | {id, title, description}'
 ```
 
 ### 2. Найди пропущенное

@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.9.1] - 2026-01-29
+
+### Fixed
+
+- **Critical: beads CLI compatibility** (P0)
+  - All agents: `--format=json` → `--json` (beads uses global `--json` flag, not `--format`)
+  - All agents and scripts: `bd show --json | jq '.field'` → `jq '.[0].field'` (bd show returns array, not object)
+
+- **Affected files:**
+  - `core/agents/*.md` — all 11 agent prompts
+  - `core/scripts/orchestrator.sh` — stale task detection
+  - `core/scripts/run-executors.sh` — task claiming and retry handling
+  - `core/scripts/run-senior-executor.sh` — review processing
+
+### Notes
+
+Without this fix, agents would receive empty results from `bd list --format=json` and errors from `bd show --format=json`, causing all task management to fail silently.
+
+---
+
 ## [0.9.0] - 2026-01-29
 
 ### Milestone: Project Upgrade Mechanism

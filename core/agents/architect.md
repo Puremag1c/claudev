@@ -96,7 +96,7 @@ bd close <id>
 ### 1. Найди задачи от Analysts
 
 ```bash
-bd list --format=json | jq '.[] | select(.labels[]? | startswith("added-by:analyst-"))'
+bd list --json | jq '.[] | select(.labels[]? | startswith("added-by:analyst-"))'
 ```
 
 ### 2. Удали дубликаты
@@ -121,7 +121,7 @@ bd close <conflicting-id> --reason="Противоречит Security: ..."
 
 ```bash
 # Найди id trigger task по title
-trigger_id=$(bd list --format=json | jq -r '.[] | select(.title == "run-plan-review") | .id' | head -1)
+trigger_id=$(bd list --json | jq -r '.[] | select(.title == "run-plan-review") | .id' | head -1)
 
 # Claim trigger
 bd update "$trigger_id" --status=in_progress
@@ -131,7 +131,7 @@ bd update "$trigger_id" --status=in_progress
 # Закрой trigger и создай milestone
 bd close "$trigger_id"
 bd create --title="Plan reviewed" --type=task --label=milestone:plan-reviewed
-milestone_id=$(bd list --format=json | jq -r '.[] | select(.labels[]? == "milestone:plan-reviewed") | .id' | head -1)
+milestone_id=$(bd list --json | jq -r '.[] | select(.labels[]? == "milestone:plan-reviewed") | .id' | head -1)
 bd close "$milestone_id"
 ```
 
@@ -174,7 +174,7 @@ cat VERSION 2>/dev/null || echo "0.0.0"
 Проанализируй closed задачи этой итерации:
 
 ```bash
-bd list --status=closed --format=json | jq -r '.[] | "\(.type) \(.title)"'
+bd list --status=closed --json | jq -r '.[] | "\(.type) \(.title)"'
 ```
 
 Правила SemVer:

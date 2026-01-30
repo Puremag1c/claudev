@@ -34,7 +34,7 @@ model: sonnet
 ### 1. Прочитай план
 
 ```bash
-bd list --format=json | jq '.[] | {id, title, description, labels}'
+bd list --json | jq '.[] | {id, title, description, labels}'
 ```
 
 ### 2. Проверь что все tasks имеют обязательные labels
@@ -45,9 +45,9 @@ bd list --format=json | jq '.[] | {id, title, description, labels}'
 # Найди tasks без model: label (это ошибка Architect!)
 # Проверяем каждую задачу отдельно для простоты
 missing_model=""
-for task_id in $(bd list --format=json | jq -r '.[] | select(.type == "task") | .id'); do
-    task_json=$(bd show "$task_id" --format=json)
-    title=$(echo "$task_json" | jq -r '.title')
+for task_id in $(bd list --json | jq -r '.[] | select(.type == "task") | .id'); do
+    task_json=$(bd show "$task_id" --json)
+    title=$(echo "$task_json" | jq -r '.[0].title')
 
     # Пропускаем служебные задачи
     if echo "$title" | grep -qE "^run-|^milestone:"; then
@@ -55,7 +55,7 @@ for task_id in $(bd list --format=json | jq -r '.[] | select(.type == "task") | 
     fi
 
     # Проверяем наличие model: label
-    if ! echo "$task_json" | jq -e '.labels[]? | startswith("model:")' >/dev/null 2>&1; then
+    if ! echo "$task_json" | jq -e '.[0].labels[]? | startswith("model:")' >/dev/null 2>&1; then
         missing_model="$missing_model\n$task_id: $title"
     fi
 done

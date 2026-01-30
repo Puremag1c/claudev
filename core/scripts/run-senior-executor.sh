@@ -42,10 +42,10 @@ process_review() {
 
     # Get task details
     local task_json
-    task_json=$(bd show "$task_id" --json 2>/dev/null || echo "{}")
+    task_json=$(bd show "$task_id" --json 2>/dev/null || echo "[]")
 
     local task_title
-    task_title=$(echo "$task_json" | jq -r '.title // "Unknown"')
+    task_title=$(echo "$task_json" | jq -r '.[0].title // "Unknown"')
 
     # Check if senior-executor agent exists
     local agent_file=".claude/agents/senior-executor.md"
