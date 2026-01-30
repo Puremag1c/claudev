@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.9.2] - 2026-01-30
+
+### Added
+
+- **Anti-overengineering guidelines** for Opus agents (architect, senior-executor)
+  - Rule: создавай только задачи, напрямую требуемые для цели
+  - Senior executor возвращает код с лишними абстракциями на доработку
+
+- **Anti-hedging guidelines** for Sonnet agents (manager, all 5 analysts)
+  - Rule: избегай hedging-слов (might, could, possibly)
+  - Принимай решение и действуй, не "возможно стоит"
+
+- **Verification-before-completion** for executor
+  - Новая секция 7.5 "Верификация (ОБЯЗАТЕЛЬНО)"
+  - Запуск тестов перед ready-for-review
+  - Проверка Playwright/browser tools если доступны
+  - Ручная верификация если тестов нет
+
+### Notes
+
+Based on Anthropic best practices for Claude 4:
+- Opus склонен к over-engineering (лишние абстракции, helpers "на будущее")
+- Sonnet hedging в ~34% случаев (research data)
+- Common failure mode: marking tasks complete without verification
+
+---
+
 ## [0.9.1] - 2026-01-29
 
 ### Fixed
