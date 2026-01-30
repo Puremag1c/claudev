@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.9.15] - 2026-01-30
+
+### Fixed
+
+- **BLOCKED_CYCLES infinite loop — architect not running** (P0)
+  - В фазе BLOCKED_CYCLES создавалась P0 задача "Fix dependency cycles"
+  - Но Architect НЕ запускался для её выполнения
+  - Результат: бесконечный цикл (18+ итераций без выхода)
+  - Исправлено:
+    - Добавлен `MODE: fix_cycles` в architect.md
+    - orchestrator.sh теперь вызывает `run_agent_with_mode "architect" ... "fix_cycles"`
+    - Добавлен счётчик последовательных BLOCKED_CYCLES (3 попытки → FATAL exit)
+    - Счётчик сбрасывается при успешном переходе в другую фазу
+
+### Affected files
+
+- `core/scripts/orchestrator.sh` — BLOCKED_CYCLES запускает architect + escalation counter
+- `core/agents/architect.md` — добавлен MODE: fix_cycles
+
+---
+
 ## [0.9.14] - 2026-01-30
 
 ### Fixed

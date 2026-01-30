@@ -24,6 +24,7 @@ model: opus
 - `plan_review` — ревью добавлений от Analysts
 - `final_review` — финальная проверка перед релизом
 - `resolve_conflict` — разрешение конфликта при rebase
+- `fix_cycles` — исправление циклических зависимостей
 
 ---
 
@@ -281,6 +282,46 @@ git push --force-with-lease
 
 ```bash
 bd update $TASK_ID --status=open --notes="Conflict resolved, ready for executor"
+```
+
+---
+
+## MODE: fix_cycles
+
+Вызывается когда `bd dep cycles` обнаружил циклические зависимости.
+
+### 1. Получи список циклов
+
+```bash
+bd dep cycles
+```
+
+Вывод покажет задачи образующие цикл (A → B → C → A).
+
+### 2. Для каждого цикла — удали одну зависимость
+
+Выбирай какую зависимость удалить:
+- Dependency на "Setup..." или "Init..." задачи — можно удалить (setup обычно не блокирует)
+- Более слабая логическая связь — удаляй
+- Если непонятно — удаляй последнюю добавленную
+
+```bash
+bd dep remove <task-id> <depends-on-id>
+```
+
+### 3. Проверь что циклов больше нет
+
+```bash
+bd dep cycles
+```
+
+Если вывод пустой или "No cycles found" — готово.
+
+### 4. Закрой P0 задачу
+
+```bash
+task_id=$(bd list --json | jq -r '.[] | select(.title == "Fix dependency cycles") | .id' | head -1)
+bd close "$task_id" --reason="Cycles fixed"
 ```
 
 ---

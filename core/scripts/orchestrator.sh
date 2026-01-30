@@ -583,6 +583,11 @@ EOF
 dispatch_phase() {
     local phase=$1
 
+    # Reset blocked cycles counter if we're not in BLOCKED_CYCLES
+    if [ "$phase" != "BLOCKED_CYCLES" ]; then
+        rm -f "$CLAUDEV_DIR/blocked_cycles_count"
+    fi
+
     case $phase in
         INIT)
             # Check draft TTL first
@@ -680,9 +685,28 @@ $spec_content"
 
         BLOCKED_CYCLES)
             log "ERROR" "Dependency cycles detected! Cannot proceed to IMPLEMENTATION."
-            log "INFO" "Creating P0 task for Architect to fix cycles..."
 
-            # Create P0 task for Architect
+            # Track consecutive blocked cycles for escalation
+            local blocked_count_file="$CLAUDEV_DIR/blocked_cycles_count"
+            local blocked_count=0
+            if [ -f "$blocked_count_file" ]; then
+                blocked_count=$(cat "$blocked_count_file" 2>/dev/null || echo "0")
+            fi
+            ((blocked_count++)) || true
+            echo "$blocked_count" > "$blocked_count_file"
+
+            # Escalation: after 3 consecutive failures, stop
+            if [ "$blocked_count" -ge 3 ]; then
+                log "FATAL" "BLOCKED_CYCLES escalation: $blocked_count consecutive failures. Manual intervention required."
+                log "INFO" "Run: bd dep cycles"
+                log "INFO" "Then: bd dep remove <task> <dep> for each cycle"
+                rm -f "$LOCK_FILE"
+                exit 1
+            fi
+
+            log "INFO" "Attempt $blocked_count/3 to fix cycles..."
+
+            # Create P0 task for Architect (if not exists)
             if ! bd list --json 2>/dev/null | jq -e '.[] | select(.title == "Fix dependency cycles")' > /dev/null 2>&1; then
                 bd create --title="Fix dependency cycles" --type=task --priority=0 \
                     --description="bd dep cycles detected circular dependencies. Fix before IMPLEMENTATION can proceed.
@@ -691,6 +715,13 @@ Run: bd dep cycles
 Then: bd dep remove <task> <dep> for one edge in each cycle" \
                     2>/dev/null || true
             fi
+
+            # Run Architect to fix cycles
+            local cycles_output
+            cycles_output=$(bd dep cycles 2>&1 || true)
+            log "INFO" "Running Architect to fix cycles..."
+            run_agent_with_mode "architect" ".claude/agents/architect.md" "opus" "fix_cycles" "CYCLES:
+$cycles_output"
             ;;
 
         *)
