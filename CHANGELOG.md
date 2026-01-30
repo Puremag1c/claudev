@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.9.3] - 2026-01-30
+
+### Fixed
+
+- **Auto-fix permissions after sudo install**
+  - If `~/.claudev` is owned by root (from previous `sudo bash install.sh`), installer now automatically fixes ownership
+  - Asks for sudo password only when needed, with clear explanation
+  - Prevents "Permission denied" errors on subsequent updates
+
+### Notes
+
+Running `curl ... | sudo bash` creates files owned by root, breaking future non-sudo updates. This fix detects the problem and corrects it automatically.
+
+---
+
 ## [0.9.2] - 2026-01-30
 
 ### Added

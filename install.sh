@@ -68,6 +68,25 @@ echo "║       Claudev Global Installer       ║"
 echo "╚══════════════════════════════════════╝"
 echo ""
 
+# === Fix permissions if needed ===
+# If ~/.claudev exists but is owned by root (from previous sudo install),
+# fix ownership so git and other operations work correctly
+
+if [[ -d "$CLAUDEV_HOME" ]]; then
+    if [[ ! -w "$CLAUDEV_HOME" ]] || [[ -d "$CLAUDEV_HOME/.git" && ! -w "$CLAUDEV_HOME/.git" ]]; then
+        warn "~/.claudev has incorrect permissions (probably from previous sudo install)"
+        info "Fixing permissions... (sudo password may be required)"
+
+        if sudo chown -R "$(whoami)" "$CLAUDEV_HOME"; then
+            success "Permissions fixed"
+        else
+            error "Cannot fix permissions"
+            echo "  Run manually: sudo chown -R $(whoami) ~/.claudev"
+            exit 1
+        fi
+    fi
+fi
+
 # === Определяем систему ===
 
 OS="unknown"
