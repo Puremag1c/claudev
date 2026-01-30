@@ -647,6 +647,21 @@ dispatch_phase() {
             spec_content=$(cat SPEC.md 2>/dev/null || echo "SPEC.md not found")
             run_agent_with_mode "architect" ".claude/agents/architect.md" "opus" "create_plan" "SPEC:
 $spec_content"
+
+            # Ensure milestone exists (architect may forget step 7)
+            local task_count milestone_exists
+            task_count=$(bd list --json 2>/dev/null | jq 'length' 2>/dev/null || echo "0")
+            milestone_exists=$(bd list --json 2>/dev/null | jq '[.[] | select(.labels[]? == "milestone:planning-done")] | length' 2>/dev/null || echo "0")
+
+            if [ "$task_count" -gt 0 ] && [ "$milestone_exists" -eq 0 ]; then
+                log "INFO" "Creating planning-done milestone (architect skipped step 7)"
+                local milestone_id
+                # Extract issue ID from "Created issue: ProjectName-xxxx" output
+                milestone_id=$(bd create --title="Planning complete" --type=task --label=milestone:planning-done 2>/dev/null | grep -oE '[A-Za-z]+-[a-z0-9]+' | head -1)
+                if [ -n "$milestone_id" ]; then
+                    bd close "$milestone_id" 2>/dev/null || true
+                fi
+            fi
             ;;
 
         HELPERS)
