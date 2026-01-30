@@ -94,19 +94,38 @@ bd close <id>
 
 ## MODE: plan_review
 
-### 1. Найди задачи от Analysts
+### 1. Прочитай SPEC.md для понимания scope
+
+```bash
+cat SPEC.md
+```
+
+### 2. Найди задачи от Analysts
 
 ```bash
 bd list --json | jq '.[] | select(.labels[]? | startswith("added-by:analyst-"))'
 ```
 
-### 2. Удали дубликаты
+### 3. Удали out-of-scope задачи
+
+**КРИТИЧНО:** Если задача НЕ нужна напрямую для реализации SPEC.md — закрой её.
+
+```bash
+bd close <out-of-scope-id> --reason="Out of scope: не требуется для SPEC.md"
+```
+
+Признаки out-of-scope:
+- Функционал не упомянут в SPEC.md
+- "Nice to have" без явной необходимости
+- Инфраструктура которая не нужна для MVP (HTTPS, auth, если не в SPEC)
+
+### 4. Удали дубликаты
 
 ```bash
 bd close <duplicate-id> --reason="Дубликат claudev-xxx"
 ```
 
-### 3. Разреши противоречия
+### 5. Разреши противоречия
 
 Приоритет: Security > Reliability > UX > Performance
 
@@ -114,11 +133,11 @@ bd close <duplicate-id> --reason="Дубликат claudev-xxx"
 bd close <conflicting-id> --reason="Противоречит Security: ..."
 ```
 
-### 4. Расставь dependencies для новых задач
+### 6. Расставь dependencies для новых задач
 
 Новые задачи от Analysts не имеют deps — добавь их.
 
-### 5. Закрой trigger
+### 7. Закрой trigger
 
 ```bash
 # Найди id trigger task по title
