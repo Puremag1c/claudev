@@ -21,6 +21,10 @@
   - Исправлено в orchestrator.sh (v0.9.12), но не в helper скриптах
   - Теперь run-analysts.sh, run-executors.sh, run-senior-executor.sh передают промпты через stdin
 
+- **`claudev update` fails after force-push** (P1)
+  - `git pull --ff-only` падал когда история разошлась
+  - Теперь автоматически делает `git reset --hard origin/main` при diverged history
+
 ### Affected files
 
 - `core/scripts/common.sh` — NEW: общие функции для всех скриптов

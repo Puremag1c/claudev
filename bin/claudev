@@ -501,7 +501,12 @@ cmd_update() {
 
     if [[ -d "$CLAUDEV_HOME/.git" ]]; then
         cd "$CLAUDEV_HOME"
-        git pull --ff-only
+        git fetch origin
+        # Handle force-pushed commits (diverged history)
+        if ! git pull --ff-only 2>/dev/null; then
+            warn "History diverged, resetting to origin/main..."
+            git reset --hard origin/main
+        fi
         success "Updated to $(cat VERSION)"
     else
         warn "Not a git installation, re-run install.sh"
