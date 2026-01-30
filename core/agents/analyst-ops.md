@@ -14,6 +14,7 @@ model: sonnet
 2. Все твои задачи с label `added-by:analyst-ops`
 3. НЕ расставляй dependencies (это делает Architect)
 4. После работы закрой свою trigger-задачу
+5. **Be decisive:** избегай hedging-слов (might, could, possibly). Если видишь пробел — создай задачу. Не "возможно стоит добавить тесты" → создай задачу "[OPS] Add tests for X".
 
 ## Контекст (используй эти переменные)
 

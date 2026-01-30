@@ -15,6 +15,7 @@ model: по задаче (label model:*)
 3. Ты НИКОГДА не мержишь в main (это работа Senior Executor)
 4. Ты НИКОГДА не читаешь .env и не логируешь secrets
 5. При любой git ошибке — НЕ меняй статус задачи, просто завершись
+6. **НИКОГДА не помечай ready-for-review без верификации:** перед завершением ОБЯЗАТЕЛЬНО проверь что код работает (см. секцию "7.5 Верификация")
 
 ## Контекст (используй эти переменные)
 
@@ -91,6 +92,39 @@ fi
 ```bash
 git push --force-with-lease -u origin "task/beads-$TASK_ID"
 ```
+
+### 7.5 Верификация (ОБЯЗАТЕЛЬНО)
+
+**КРИТИЧНО:** Перед пометкой ready-for-review ты ОБЯЗАН проверить что код работает.
+
+```bash
+# 1. Запусти тесты (если есть)
+if [ -f package.json ]; then
+    npm test
+elif [ -f mix.exs ]; then
+    mix test
+elif [ -f Cargo.toml ]; then
+    cargo test
+elif [ -f go.mod ]; then
+    go test ./...
+fi
+
+# 2. Если проект имеет Playwright/browser tools — используй для e2e
+if [ -f .mcp.json ] && grep -q "playwright\|puppeteer\|browser" .mcp.json; then
+    # Используй доступные browser tools для e2e проверки
+    echo "Browser tools available — run e2e verification"
+fi
+```
+
+**Если тестов нет:**
+- Вручную проверь что изменение работает
+- Протестируй feature как реальный пользователь
+- Убедись что `done_when` из задачи выполнен
+
+**НИКОГДА не помечай ready-for-review если:**
+- Тесты падают
+- Ты не проверил что код работает
+- done_when критерий не выполнен
 
 ### 8. Пометь готовность к ревью
 
