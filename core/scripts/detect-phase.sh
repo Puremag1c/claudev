@@ -115,9 +115,13 @@ fi
 # IMPLEMENTATION: есть открытые или in_progress задачи
 if [ "$OPEN" -gt 0 ] || [ "$IN_PROGRESS" -gt 0 ]; then
     # Safety net: проверяем циклы перед началом реализации
-    if bd dep cycles 2>&1 | grep -qi "cycle"; then
+    # NOTE: "bd dep cycles" outputs "✓ No dependency cycles detected" when clean
+    # We check for actual cycle output (contains "→" arrow) not just word "cycle"
+    cycles_output=$(bd dep cycles 2>&1 || true)
+    if echo "$cycles_output" | grep -q "→"; then
         echo "BLOCKED_CYCLES"
         >&2 echo "Dependency cycles detected! Fix before implementation."
+        >&2 echo "$cycles_output"
         exit 0  # exit 0 чтобы orchestrator не добавил "UNKNOWN"
     fi
     echo "IMPLEMENTATION"

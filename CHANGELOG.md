@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.9.16] - 2026-01-30
+
+### Fixed
+
+- **False positive BLOCKED_CYCLES detection** (P0)
+  - `detect-phase.sh` использовал `grep -qi "cycle"` для проверки циклов
+  - Вывод "✓ No dependency cycles detected" содержит слово "cycle"
+  - Результат: BLOCKED_CYCLES даже когда циклов нет
+  - Исправлено: проверяем наличие "→" (стрелки) в выводе — это реальный индикатор цикла
+
+### Affected files
+
+- `core/scripts/detect-phase.sh` — исправлена логика определения циклов
+
+---
+
 ## [0.9.15] - 2026-01-30
 
 ### Fixed
