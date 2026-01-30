@@ -651,7 +651,7 @@ $spec_content"
             # Ensure milestone exists (architect may forget step 7)
             local task_count milestone_exists
             task_count=$(bd list --json 2>/dev/null | jq 'length' 2>/dev/null || echo "0")
-            milestone_exists=$(bd list --json 2>/dev/null | jq '[.[] | select(.labels[]? == "milestone:planning-done")] | length' 2>/dev/null || echo "0")
+            milestone_exists=$(bd list --status=closed --json 2>/dev/null | jq '[.[] | select(.labels[]? == "milestone:planning-done")] | length' 2>/dev/null || echo "0")
 
             if [ "$task_count" -gt 0 ] && [ "$milestone_exists" -eq 0 ]; then
                 log "INFO" "Creating planning-done milestone (architect skipped step 7)"
