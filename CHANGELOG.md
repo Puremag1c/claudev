@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.9.8] - 2026-01-30
+
+### Fixed
+
+- **Tech Writer молчит при запуске** (P0 UX)
+  - Claude Code CLI ждёт первый user message даже с `--system-prompt`
+  - Добавлен trigger "Начни" как начальное сообщение
+  - Теперь Tech Writer сразу начинает диалог
+
+### Affected files
+
+- `core/scripts/orchestrator.sh` — добавлен trigger в `run_interactive_agent()`
+
+---
+
 ## [0.9.7] - 2026-01-30
 
 ### Added

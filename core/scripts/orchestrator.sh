@@ -273,7 +273,8 @@ EOF
 
     # Интерактивный режим: передаём содержимое промпта как системную инструкцию
     # Без --print, без timeout, без перенаправления в файл
-    if claude --model "$model" --system-prompt "$full_prompt"; then
+    # "Начни" — trigger для первого сообщения (Claude Code ждёт user input)
+    if claude --model "$model" --system-prompt "$full_prompt" "Начни"; then
         log "INFO" "Interactive agent $agent_name completed"
         return 0
     else
