@@ -381,6 +381,8 @@ project-scripts/
 logs/
 stats/
 PROJECT_CONTEXT.md
+SPEC.md
+SPEC.draft.md
 .mcp.json
 EOF
             success "Updated .gitignore"
@@ -397,6 +399,8 @@ project-scripts/
 logs/
 stats/
 PROJECT_CONTEXT.md
+SPEC.md
+SPEC.draft.md
 .mcp.json
 EOF
         success "Created .gitignore"
@@ -601,7 +605,7 @@ update_gitignore() {
         return
     fi
 
-    local entries=(".claudev/" ".claude/agents" ".claude/commands" "scripts" "project-scripts/" "logs/" "stats/" "PROJECT_CONTEXT.md" ".mcp.json")
+    local entries=(".claudev/" ".claude/agents" ".claude/commands" "scripts" "project-scripts/" "logs/" "stats/" "PROJECT_CONTEXT.md" "SPEC.md" "SPEC.draft.md" ".mcp.json")
     local added=()
 
     for entry in "${entries[@]}"; do

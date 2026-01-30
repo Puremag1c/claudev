@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.9.13] - 2026-01-30
+
+### Fixed
+
+- **macOS: timeout command not found in helper scripts** (P0)
+  - `run-analysts.sh`, `run-executors.sh`, `run-senior-executor.sh`, `deep-analyze.sh` использовали `timeout` напрямую
+  - macOS не имеет GNU `timeout` по умолчанию
+  - Создан общий `common.sh` с функцией `timeout_cmd()` (fallback: gtimeout > timeout > perl)
+  - Все скрипты теперь используют `timeout_cmd` через source common.sh
+  - Устранено дублирование кода (timeout_cmd была только в orchestrator.sh)
+
+- **SPEC.md и SPEC.draft.md не добавлялись в .gitignore** (P1)
+  - Tech Writer создаёт эти файлы, но они не игнорировались
+  - Добавлены SPEC.md и SPEC.draft.md в шаблон .gitignore
+  - Обновлена функция update_gitignore() для upgrade
+
+- **Agent prompts with YAML frontmatter fail in helper scripts** (P0)
+  - Промпты с `---` (frontmatter) парсились как CLI опция
+  - Исправлено в orchestrator.sh (v0.9.12), но не в helper скриптах
+  - Теперь run-analysts.sh, run-executors.sh, run-senior-executor.sh передают промпты через stdin
+
+### Affected files
+
+- `core/scripts/common.sh` — NEW: общие функции для всех скриптов
+- `core/scripts/run-analysts.sh` — source common.sh, timeout → timeout_cmd
+- `core/scripts/run-executors.sh` — source common.sh, timeout → timeout_cmd
+- `core/scripts/run-senior-executor.sh` — source common.sh, timeout → timeout_cmd
+- `core/scripts/deep-analyze.sh` — source common.sh, timeout → timeout_cmd
+- `core/scripts/orchestrator.sh` — source common.sh, удалена локальная timeout_cmd
+- `bin/claudev` — добавлены SPEC.md, SPEC.draft.md в .gitignore шаблон
+
+---
+
 ## [0.9.12] - 2026-01-30
 
 ### Fixed

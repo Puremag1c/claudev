@@ -9,6 +9,10 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=common.sh
+source "$SCRIPT_DIR/common.sh"
+
 PROJECT_DIR=$(pwd)
 LOGS_DIR="$PROJECT_DIR/logs"
 CONFIG_FILE="$PROJECT_DIR/.claudev/config.sh"
@@ -98,7 +102,8 @@ TASK_ID: $task_id
 TASK: $task_json
 PROJECT_ROOT: $PROJECT_DIR"
 
-    if ! timeout "$TASK_TIMEOUT" claude --model "$model" -p "$full_prompt" > "$output_file" 2>&1; then
+    # Use stdin to avoid issues with prompts starting with "---"
+    if ! printf '%s' "$full_prompt" | timeout_cmd "$TASK_TIMEOUT" claude --model "$model" > "$output_file" 2>&1; then
         local exit_code=$?
         if [ $exit_code -eq 124 ]; then
             log "WARN" "Executor timeout for $task_id"

@@ -7,6 +7,10 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=common.sh
+source "$SCRIPT_DIR/common.sh"
+
 PROJECT_DIR=$(pwd)
 LOGS_DIR="$PROJECT_DIR/logs"
 CONFIG_FILE="$PROJECT_DIR/.claudev/config.sh"
@@ -70,7 +74,8 @@ TASK: $task_json
 PROJECT_ROOT: $PROJECT_DIR
 ACTION: Review and merge if ready"
 
-    if timeout "$TASK_TIMEOUT" claude --model opus -p "$full_prompt" > "$output_file" 2>&1; then
+    # Use stdin to avoid issues with prompts starting with "---"
+    if printf '%s' "$full_prompt" | timeout_cmd "$TASK_TIMEOUT" claude --model opus > "$output_file" 2>&1; then
         log "INFO" "Review completed for $task_id"
         # Remove needs-review label, add reviewed label
         bd update "$task_id" --remove-label needs-review --add-label reviewed 2>/dev/null || true

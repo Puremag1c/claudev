@@ -10,6 +10,10 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=common.sh
+source "$SCRIPT_DIR/common.sh"
+
 CLAUDEV_HOME="${CLAUDEV_HOME:-$HOME/.claudev}"
 PROJECT_ROOT="${PROJECT_ROOT:-$(pwd)}"
 
@@ -64,7 +68,7 @@ main() {
     echo "Running deep analysis with Claude..."
 
     # Run analyzer agent
-    timeout 5m claude --model opus --print < "$CLAUDEV_HOME/core/agents/analyzer.md" << EOF
+    timeout_cmd 5m claude --model opus --print < "$CLAUDEV_HOME/core/agents/analyzer.md" << EOF
 
 ---
 PROJECT_ROOT: $PROJECT_ROOT

@@ -9,6 +9,10 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=common.sh
+source "$SCRIPT_DIR/common.sh"
+
 PROJECT_DIR=$(pwd)
 CLAUDEV_DIR="$PROJECT_DIR/.claudev"
 LOGS_DIR="$PROJECT_DIR/logs"
@@ -44,46 +48,6 @@ log() {
     local level=$1
     local message=$2
     echo "$(date '+%Y-%m-%d %H:%M:%S') [ORCHESTRATOR] $level: $message" | tee -a "$LOGS_DIR/claudev.log"
-}
-
-# === Timeout wrapper (macOS compatibility) ===
-
-timeout_cmd() {
-    local duration="$1"
-    shift
-
-    # Use gtimeout on macOS (brew install coreutils)
-    if command -v gtimeout &>/dev/null; then
-        gtimeout "$duration" "$@"
-        return $?
-    fi
-
-    # Use timeout on Linux
-    if command -v timeout &>/dev/null; then
-        timeout "$duration" "$@"
-        return $?
-    fi
-
-    # Convert duration to seconds for perl fallback
-    local seconds
-    if [[ "$duration" =~ ^([0-9]+)m$ ]]; then
-        seconds=$((${BASH_REMATCH[1]} * 60))
-    elif [[ "$duration" =~ ^([0-9]+)s$ ]]; then
-        seconds=${BASH_REMATCH[1]}
-    else
-        seconds="$duration"
-    fi
-
-    # Perl-based timeout (macOS native fallback)
-    perl -e '
-        my $timeout = shift @ARGV;
-        my $pid = fork // die "fork: $!";
-        if (!$pid) { exec @ARGV or die "exec: $!" }
-        $SIG{ALRM} = sub { kill "TERM", $pid; exit 124 };
-        alarm $timeout;
-        waitpid $pid, 0;
-        exit($? >> 8);
-    ' "$seconds" "$@"
 }
 
 # === Config validation ===
