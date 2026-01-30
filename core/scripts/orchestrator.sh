@@ -353,7 +353,8 @@ MODE: $mode
 PROJECT_ROOT: $PROJECT_DIR
 $extra_context"
 
-    if timeout_cmd "$TASK_TIMEOUT" claude --model "$model" -p "$full_prompt" > "$output_file" 2>&1; then
+    # Use stdin to avoid issues with prompts starting with "---"
+    if printf '%s' "$full_prompt" | timeout_cmd "$TASK_TIMEOUT" claude --model "$model" > "$output_file" 2>&1; then
         log "INFO" "Agent $agent_name completed (mode: $mode)"
         return 0
     else
@@ -456,7 +457,8 @@ $retry_tasks
 1. Для blocked — проверь зависимости, разблокируй если dependency closed
 2. Для retry limit — эскалируй к Architect (создай задачу) или закрой как невозможную"
 
-    timeout_cmd "$TASK_TIMEOUT" claude --model sonnet -p "$full_prompt" > "$output_file" 2>&1 || true
+    # Use stdin to avoid issues with prompts starting with "---"
+    printf '%s' "$full_prompt" | timeout_cmd "$TASK_TIMEOUT" claude --model sonnet > "$output_file" 2>&1 || true
 
     log "INFO" "Manager problem resolution complete (see $output_file)"
 }
