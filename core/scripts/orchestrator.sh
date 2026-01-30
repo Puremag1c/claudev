@@ -46,6 +46,46 @@ log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') [ORCHESTRATOR] $level: $message" | tee -a "$LOGS_DIR/claudev.log"
 }
 
+# === Timeout wrapper (macOS compatibility) ===
+
+timeout_cmd() {
+    local duration="$1"
+    shift
+
+    # Use gtimeout on macOS (brew install coreutils)
+    if command -v gtimeout &>/dev/null; then
+        gtimeout "$duration" "$@"
+        return $?
+    fi
+
+    # Use timeout on Linux
+    if command -v timeout &>/dev/null; then
+        timeout "$duration" "$@"
+        return $?
+    fi
+
+    # Convert duration to seconds for perl fallback
+    local seconds
+    if [[ "$duration" =~ ^([0-9]+)m$ ]]; then
+        seconds=$((${BASH_REMATCH[1]} * 60))
+    elif [[ "$duration" =~ ^([0-9]+)s$ ]]; then
+        seconds=${BASH_REMATCH[1]}
+    else
+        seconds="$duration"
+    fi
+
+    # Perl-based timeout (macOS native fallback)
+    perl -e '
+        my $timeout = shift @ARGV;
+        my $pid = fork // die "fork: $!";
+        if (!$pid) { exec @ARGV or die "exec: $!" }
+        $SIG{ALRM} = sub { kill "TERM", $pid; exit 124 };
+        alarm $timeout;
+        waitpid $pid, 0;
+        exit($? >> 8);
+    ' "$seconds" "$@"
+}
+
 # === Config validation ===
 
 validate_config() {
@@ -313,7 +353,7 @@ MODE: $mode
 PROJECT_ROOT: $PROJECT_DIR
 $extra_context"
 
-    if timeout "$TASK_TIMEOUT" claude --model "$model" -p "$full_prompt" > "$output_file" 2>&1; then
+    if timeout_cmd "$TASK_TIMEOUT" claude --model "$model" -p "$full_prompt" > "$output_file" 2>&1; then
         log "INFO" "Agent $agent_name completed (mode: $mode)"
         return 0
     else
@@ -416,7 +456,7 @@ $retry_tasks
 1. Для blocked — проверь зависимости, разблокируй если dependency closed
 2. Для retry limit — эскалируй к Architect (создай задачу) или закрой как невозможную"
 
-    timeout "$TASK_TIMEOUT" claude --model sonnet -p "$full_prompt" > "$output_file" 2>&1 || true
+    timeout_cmd "$TASK_TIMEOUT" claude --model sonnet -p "$full_prompt" > "$output_file" 2>&1 || true
 
     log "INFO" "Manager problem resolution complete (see $output_file)"
 }
