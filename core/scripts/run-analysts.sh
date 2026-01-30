@@ -69,12 +69,19 @@ run_analyst() {
     local analyst_prompt
     analyst_prompt=$(cat "$agent_file" 2>/dev/null)
 
+    # Read SPEC.md for scope context
+    local spec_content
+    spec_content=$(cat "$PROJECT_DIR/SPEC.md" 2>/dev/null || echo "SPEC.md not found")
+
     local full_prompt="$analyst_prompt
 
 ---
 ANALYST: $analyst
 TRIGGER_TASK: $task_id
-PROJECT_ROOT: $PROJECT_DIR"
+PROJECT_ROOT: $PROJECT_DIR
+
+## SCOPE (SPEC.md):
+$spec_content"
 
     # Use stdin to avoid issues with prompts starting with "---"
     if ! printf '%s' "$full_prompt" | timeout_cmd "$TASK_TIMEOUT" claude --model sonnet > "$output_file" 2>&1; then

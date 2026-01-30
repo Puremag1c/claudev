@@ -225,8 +225,8 @@ detect_phase() {
 
     # Check if detect-phase.sh exists and is executable
     if [[ ! -x "./scripts/detect-phase.sh" ]]; then
-        log "ERROR" "detect-phase.sh not found or not executable at ./scripts/detect-phase.sh"
-        log "ERROR" "Check that scripts/ symlink points to $CLAUDEV_HOME/core/scripts"
+        # Log to stderr to avoid polluting phase output
+        >&2 echo "ERROR: detect-phase.sh not found or not executable at ./scripts/detect-phase.sh"
         echo "UNKNOWN"
         return
     fi
@@ -236,10 +236,10 @@ detect_phase() {
     stderr_output=$(mktemp)
     phase=$(CLAUDEV_DEBUG="${DEBUG:-false}" ./scripts/detect-phase.sh 2>"$stderr_output") || phase="UNKNOWN"
 
-    # Log stderr if not empty (contains diagnostic info)
+    # Log stderr to file only (NOT to stdout!) to avoid polluting $phase
     if [[ -s "$stderr_output" ]]; then
         while IFS= read -r line; do
-            log "DEBUG" "[detect-phase] $line"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') [ORCHESTRATOR] DEBUG: [detect-phase] $line" >> "$LOGS_DIR/claudev.log"
         done < "$stderr_output"
     fi
     rm -f "$stderr_output"
