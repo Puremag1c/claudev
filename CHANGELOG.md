@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.9.7] - 2026-01-30
+
+### Added
+
+- **Auto-commit .gitignore при init** (P2 UX)
+  - После обновления .gitignore автоматически коммитится
+  - Пользователю не нужно делать это вручную
+
+### Affected files
+
+- `bin/claudev` — добавлен auto-commit в `cmd_init()`
+
+---
+
 ## [0.9.6] - 2026-01-30
 
 ### Fixed
