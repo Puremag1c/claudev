@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.9.14] - 2026-01-30
+
+### Fixed
+
+- **BLOCKED_CYCLES infinite loop in orchestrator** (P0)
+  - `detect_phase()` вызывала `log()` который выводил в stdout через `tee`
+  - Весь этот вывод попадал в переменную `$phase` вместе с timestamp
+  - Результат: `$phase = "2026-01-30 18:33:02 [ORCHESTRATOR] DEBUG: ... BLOCKED_CYCLES"` вместо просто `"BLOCKED_CYCLES"`
+  - Исправлено: debug output теперь пишется напрямую в лог-файл, минуя stdout
+
+- **Analysts creating irrelevant tasks (scope creep)** (P0)
+  - Аналитики не получали SPEC.md и не знали scope проекта
+  - Генерировали задачи про HTTPS, аутентификацию и другое что не было в SPEC
+  - Исправлено:
+    - `run-analysts.sh` теперь передаёт SPEC.md в контекст каждого аналитика
+    - Все 5 промптов аналитиков получили правило #0 SCOPE CONSTRAINT
+    - Architect в `plan_review` теперь удаляет out-of-scope задачи (шаг 3)
+
+### Affected files
+
+- `core/scripts/orchestrator.sh` — detect_phase() пишет в файл, не в stdout
+- `core/scripts/run-analysts.sh` — добавлена передача SPEC.md в контекст
+- `core/agents/analyst-*.md` (5 файлов) — правило #0 SCOPE CONSTRAINT
+- `core/agents/architect.md` — шаг 3 в plan_review для удаления out-of-scope задач
+
+---
+
 ## [0.9.13] - 2026-01-30
 
 ### Fixed
