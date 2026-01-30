@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.9.12] - 2026-01-30
+
+### Fixed
+
+- **macOS compatibility: timeout command not found** (P0)
+  - macOS не имеет GNU `timeout` по умолчанию
+  - Добавлена функция `timeout_cmd()` с fallback: gtimeout (coreutils) > timeout (Linux) > perl
+  - Работает из коробки без установки дополнительных пакетов
+
+- **Agent prompts starting with "---" parsed as CLI option** (P0)
+  - YAML frontmatter в agent файлах интерпретировался как опция командной строки
+  - Исправлено: промпты передаются через stdin вместо `-p` аргумента
+
+- **Planning phase stuck in loop** (P0)
+  - Architect создавал план, но не создавал milestone:planning-done
+  - Добавлено автоматическое создание milestone если architect пропустил шаг 7
+
+- **Milestones not detected by detect-phase.sh** (P1)
+  - `has_label()` проверяла только open задачи, а milestones закрываются сразу
+  - Исправлено: теперь проверяет `--status=closed`
+
+### Affected files
+
+- `core/scripts/orchestrator.sh` — timeout_cmd, stdin prompts, auto-milestone
+- `core/scripts/detect-phase.sh` — has_label для closed tasks
+
+---
+
 ## [0.9.8] - 2026-01-30
 
 ### Fixed
