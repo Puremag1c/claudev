@@ -305,17 +305,42 @@ cmd_init() {
     # Symlinks
     mkdir -p .claude
 
-    if [[ ! -L ".claude/agents" ]]; then
+    # Link .claude/agents (handle existing directory)
+    if [[ -L ".claude/agents" ]]; then
+        success ".claude/agents already linked"
+    elif [[ -d ".claude/agents" ]]; then
+        warn ".claude/agents is a directory, renaming to .claude/agents.backup"
+        mv .claude/agents .claude/agents.backup
+        ln -sf "$CLAUDEV_HOME/core/agents" .claude/agents
+        success "Linked .claude/agents (old dir backed up)"
+    else
         ln -sf "$CLAUDEV_HOME/core/agents" .claude/agents
         success "Linked .claude/agents"
     fi
 
-    if [[ ! -L ".claude/commands" ]]; then
+    # Link .claude/commands (handle existing directory)
+    if [[ -L ".claude/commands" ]]; then
+        success ".claude/commands already linked"
+    elif [[ -d ".claude/commands" ]]; then
+        warn ".claude/commands is a directory, renaming to .claude/commands.backup"
+        mv .claude/commands .claude/commands.backup
+        ln -sf "$CLAUDEV_HOME/core/commands" .claude/commands
+        success "Linked .claude/commands (old dir backed up)"
+    else
         ln -sf "$CLAUDEV_HOME/core/commands" .claude/commands
         success "Linked .claude/commands"
     fi
 
-    if [[ ! -L "scripts" ]]; then
+    # Link scripts/ (handle existing directory - common in projects)
+    if [[ -L "scripts" ]]; then
+        success "scripts/ already linked"
+    elif [[ -d "scripts" ]]; then
+        warn "scripts/ directory exists, renaming to project-scripts/"
+        mv scripts project-scripts
+        ln -sf "$CLAUDEV_HOME/core/scripts" scripts
+        success "Linked scripts/ (old dir renamed to project-scripts/)"
+        info "Your original scripts are in project-scripts/"
+    else
         ln -sf "$CLAUDEV_HOME/core/scripts" scripts
         success "Linked scripts/"
     fi

@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.9.4] - 2026-01-30
+
+### Fixed
+
+- **Critical: `claudev init` breaks on projects with existing `scripts/` folder** (P0)
+  - Previous behavior: created symlink INSIDE the folder (`scripts/scripts → ...`)
+  - New behavior: renames existing folder to `project-scripts/`, then creates proper symlink
+  - Same fix applied to `.claude/agents` and `.claude/commands`
+
+- **Orchestrator shows unhelpful "Unknown phase: UNKNOWN"** (P1)
+  - Previous behavior: stderr from `detect-phase.sh` was discarded (`2>/dev/null`)
+  - New behavior: stderr is captured and logged at DEBUG level
+  - Added check for script existence before calling
+
+### Added
+
+- **Symlink health check at startup** (P2)
+  - Orchestrator now validates all symlinks before starting main loop
+  - Clear error messages if `scripts/` or `.claude/agents` are broken
+  - Quick-fix command shown in error output
+
+- **Debug mode for troubleshooting** (P3)
+  - New config option: `DEBUG=true` in `.claudev/config.sh`
+  - When enabled, `detect-phase.sh` outputs all variable values
+  - Helps diagnose phase detection issues
+
+### Affected files
+
+- `bin/claudev` — improved symlink handling in `cmd_init()`
+- `core/scripts/orchestrator.sh` — health check, stderr logging
+- `core/scripts/detect-phase.sh` — debug output
+- `templates/config.template.sh` — new DEBUG option
+
+---
+
 ## [0.9.3] - 2026-01-30
 
 ### Fixed

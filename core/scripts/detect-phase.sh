@@ -63,6 +63,17 @@ HAS_PROJECT_DONE=$(has_label "milestone:project-done")
 ANALYST_TRIGGERS_OPEN=$(has_open_task "^run-analyst-")
 PLAN_REVIEW_OPEN=$(has_open_task "^run-plan-review$")
 
+# === Debug output ===
+if [ "${CLAUDEV_DEBUG:-false}" = "true" ]; then
+    >&2 echo "=== detect-phase.sh DEBUG ==="
+    >&2 echo "PROJECT_ROOT: $PROJECT_ROOT"
+    >&2 echo "SPEC.md exists: $([ -f "$PROJECT_ROOT/SPEC.md" ] && echo "yes" || echo "no")"
+    >&2 echo "Tasks: total=$TOTAL, open=$OPEN, in_progress=$IN_PROGRESS, closed=$CLOSED"
+    >&2 echo "Milestones: planning=$HAS_PLANNING_DONE, analysts=$HAS_ANALYSTS_DONE, reviewed=$HAS_PLAN_REVIEWED, done=$HAS_PROJECT_DONE"
+    >&2 echo "Triggers: analyst_open=$ANALYST_TRIGGERS_OPEN, plan_review=$PLAN_REVIEW_OPEN"
+    >&2 echo "==========================="
+fi
+
 # === Определение фазы ===
 
 # DONE: проект завершён

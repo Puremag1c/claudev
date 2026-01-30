@@ -91,6 +91,7 @@ validate_config() {
     validate_bool "CD_ENABLED" "$CD_ENABLED"
     validate_bool "LOG_TOKENS" "$LOG_TOKENS"
     validate_bool "CLEANUP_ENABLED" "$CLEANUP_ENABLED"
+    validate_bool "DEBUG" "${DEBUG:-false}"
 
     validate_timeout "TASK_TIMEOUT" "$TASK_TIMEOUT"
     validate_timeout "USER_INPUT_TIMEOUT" "$USER_INPUT_TIMEOUT"
@@ -121,6 +122,56 @@ check_beads() {
         log "FATAL" "Beads daemon not running. Run: bd daemon start"
         exit 1
     fi
+}
+
+# === Symlinks health check ===
+
+check_symlinks_health() {
+    local errors=0
+
+    # Check scripts/ symlink
+    if [[ ! -L "scripts" ]]; then
+        if [[ -d "scripts" ]]; then
+            log "ERROR" "scripts/ is a directory, not a symlink. Run: claudev init --force"
+        else
+            log "ERROR" "scripts/ symlink not found. Run: claudev init"
+        fi
+        ((errors++))
+    elif [[ ! -e "scripts" ]]; then
+        log "ERROR" "scripts/ symlink is broken (target doesn't exist)"
+        log "ERROR" "Expected: $HOME/.claudev/core/scripts"
+        ((errors++))
+    fi
+
+    # Check .claude/agents symlink
+    if [[ ! -L ".claude/agents" ]]; then
+        if [[ -d ".claude/agents" ]]; then
+            log "ERROR" ".claude/agents is a directory, not a symlink. Run: claudev init --force"
+        else
+            log "ERROR" ".claude/agents symlink not found. Run: claudev init"
+        fi
+        ((errors++))
+    elif [[ ! -e ".claude/agents" ]]; then
+        log "ERROR" ".claude/agents symlink is broken (target doesn't exist)"
+        ((errors++))
+    fi
+
+    # Check required scripts exist
+    local required_scripts=("detect-phase.sh" "run-executors.sh" "run-analysts.sh")
+    for script in "${required_scripts[@]}"; do
+        if [[ ! -x "./scripts/$script" ]]; then
+            log "ERROR" "Required script not found or not executable: scripts/$script"
+            ((errors++))
+        fi
+    done
+
+    if [[ "$errors" -gt 0 ]]; then
+        log "FATAL" "Health check failed ($errors errors). Fix symlinks and try again."
+        log "INFO" "Quick fix: rm -f scripts && ln -sf ~/.claudev/core/scripts scripts"
+        exit 1
+    fi
+
+    log "INFO" "Health check passed"
 }
 
 # === Graceful shutdown ===
@@ -165,7 +216,31 @@ trap cleanup SIGINT SIGTERM
 # === Detect phase ===
 
 detect_phase() {
-    ./scripts/detect-phase.sh 2>/dev/null || echo "UNKNOWN"
+    local phase
+    local stderr_output
+
+    # Check if detect-phase.sh exists and is executable
+    if [[ ! -x "./scripts/detect-phase.sh" ]]; then
+        log "ERROR" "detect-phase.sh not found or not executable at ./scripts/detect-phase.sh"
+        log "ERROR" "Check that scripts/ symlink points to $CLAUDEV_HOME/core/scripts"
+        echo "UNKNOWN"
+        return
+    fi
+
+    # Capture both stdout and stderr
+    # Pass DEBUG flag to detect-phase.sh via environment
+    stderr_output=$(mktemp)
+    phase=$(CLAUDEV_DEBUG="${DEBUG:-false}" ./scripts/detect-phase.sh 2>"$stderr_output") || phase="UNKNOWN"
+
+    # Log stderr if not empty (contains diagnostic info)
+    if [[ -s "$stderr_output" ]]; then
+        while IFS= read -r line; do
+            log "DEBUG" "[detect-phase] $line"
+        done < "$stderr_output"
+    fi
+    rm -f "$stderr_output"
+
+    echo "$phase"
 }
 
 # === Run agent interactively (for user dialogue) ===
@@ -615,6 +690,9 @@ main() {
         log "FATAL" "Claude CLI not found. Install: npm install -g @anthropic/claude-code"
         exit 1
     fi
+
+    # Health check: symlinks and required files
+    check_symlinks_health
 
     # Find VERSION relative to this script (works with symlinks)
     local script_real_path claudev_root version
