@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.9.6] - 2026-01-30
+
+### Fixed
+
+- **Неполный .gitignore при init** (P1)
+  - Симлинки и служебные папки не игнорировались
+  - Добавлены: `.claudev/`, `.claude/agents`, `.claude/commands`, `scripts`, `project-scripts/`
+  - Исправлено для init и upgrade
+
+### Affected files
+
+- `bin/claudev` — обновлён .gitignore template и `update_gitignore()`
+
+---
+
 ## [0.9.5] - 2026-01-30
 
 ### Fixed

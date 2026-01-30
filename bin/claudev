@@ -368,14 +368,18 @@ EOF
 
     # .gitignore
     if [[ -f ".gitignore" ]]; then
-        if ! grep -q "logs/" .gitignore 2>/dev/null; then
+        if ! grep -q "# Claudev" .gitignore 2>/dev/null; then
             info "Updating .gitignore..."
             cat >> .gitignore << 'EOF'
 
 # Claudev
+.claudev/
+.claude/agents
+.claude/commands
+scripts
+project-scripts/
 logs/
 stats/
-.claudev/*.lock
 PROJECT_CONTEXT.md
 .mcp.json
 EOF
@@ -385,9 +389,13 @@ EOF
         info "Creating .gitignore..."
         cat > .gitignore << 'EOF'
 # Claudev
+.claudev/
+.claude/agents
+.claude/commands
+scripts
+project-scripts/
 logs/
 stats/
-.claudev/*.lock
 PROJECT_CONTEXT.md
 .mcp.json
 EOF
@@ -586,7 +594,7 @@ update_gitignore() {
         return
     fi
 
-    local entries=("logs/" "stats/" ".claudev/*.lock" "PROJECT_CONTEXT.md" ".mcp.json")
+    local entries=(".claudev/" ".claude/agents" ".claude/commands" "scripts" "project-scripts/" "logs/" "stats/" "PROJECT_CONTEXT.md" ".mcp.json")
     local added=()
 
     for entry in "${entries[@]}"; do
