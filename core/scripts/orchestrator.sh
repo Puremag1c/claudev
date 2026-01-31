@@ -358,7 +358,7 @@ check_and_create_done_milestone() {
 
     if [ -n "$latest_log" ] && grep -q "FINAL_REVIEW: PASSED" "$latest_log" 2>/dev/null; then
         log "INFO" "Final review passed, creating project-done milestone"
-        bd create --title="Project complete" --type=task --label=milestone:project-done 2>/dev/null || true
+        bd create --title="Project complete" --type=task --labels=milestone:project-done 2>/dev/null || true
         local milestone_id
         milestone_id=$(bd list --json 2>/dev/null | jq -r '.[] | select(.labels[]? == "milestone:project-done") | .id' | head -1)
         if [ -n "$milestone_id" ]; then
@@ -640,7 +640,7 @@ $spec_content"
                 log "INFO" "Creating planning-done milestone (architect skipped step 7)"
                 local milestone_id
                 # Extract issue ID from "Created issue: ProjectName-xxxx" output
-                milestone_id=$(bd create --title="Planning complete" --type=task --label=milestone:planning-done 2>/dev/null | grep -oE '[A-Za-z]+-[a-z0-9]+' | head -1)
+                milestone_id=$(bd create --title="Planning complete" --type=task --labels=milestone:planning-done 2>/dev/null | grep -oE '[A-Za-z]+-[a-z0-9]+' | head -1)
                 if [ -n "$milestone_id" ]; then
                     bd close "$milestone_id" 2>/dev/null || true
                 fi
@@ -659,7 +659,7 @@ $spec_content"
             if [ "$open_triggers" -eq 0 ]; then
                 if ! bd list --json 2>/dev/null | jq -e '.[] | select(.labels[]? == "milestone:analysts-done")' > /dev/null 2>&1; then
                     log "INFO" "All analysts done, creating milestone"
-                    bd create --title="Analysts complete" --type=task --label=milestone:analysts-done 2>/dev/null || true
+                    bd create --title="Analysts complete" --type=task --labels=milestone:analysts-done 2>/dev/null || true
                     local milestone_id
                     milestone_id=$(bd list --json 2>/dev/null | jq -r '.[] | select(.labels[]? == "milestone:analysts-done") | .id' | head -1)
                     [ -n "$milestone_id" ] && bd close "$milestone_id" 2>/dev/null || true

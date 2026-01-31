@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.9.26] - 2026-01-31
+
+### Fixed
+
+- **CRITICAL: Бесконечный цикл HELPERS — система застревала запуская аналитиков снова и снова**
+  - Опечатка в bd create: `--label=` вместо `--labels=`
+  - Milestones создавались БЕЗ меток → detect-phase.sh не находил их
+  - Система не переходила из HELPERS в IMPLEMENTATION
+  - За 2 часа: 9 задач → 364 задачи (аналитики запускались ~720 раз)
+  - Исправлено: `--label=` → `--labels=` в 3 местах
+
+### Affected files
+
+- `core/scripts/orchestrator.sh` — исправлен синтаксис bd create для milestones
+
+---
+
 ## [0.9.25] - 2026-01-31
 
 ### Fixed
