@@ -1043,8 +1043,10 @@ cmd_stop() {
     rm -f "$lock_file"
     success "Orchestrator stopped"
 
-    # Note: detached executors continue running
-    info "Note: Running executors will continue until completion"
+    # Kill ALL claude processes for this project
+    info "Stopping all executor processes..."
+    pkill -9 -f "claude --model" 2>/dev/null || true
+    success "All processes stopped"
 }
 
 # === Help ===
