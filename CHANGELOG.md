@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.9.21] - 2026-01-31
+
+### Added
+
+- **`claudev stop` command**
+  - Graceful shutdown orchestrator (SIGTERM → wait 5s → SIGKILL)
+  - Detached executors continue running until completion
+  - Safe for updates: `claudev stop && claudev update && claudev start`
+
+### Affected files
+
+- `bin/claudev` — added cmd_stop()
+
+---
+
 ## [0.9.20] - 2026-01-31
 
 ### Changed

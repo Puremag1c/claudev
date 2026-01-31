@@ -1002,6 +1002,51 @@ delete_milestone() {
     fi
 }
 
+# === Stop ===
+
+cmd_stop() {
+    if [[ ! -d ".claudev" ]]; then
+        error "Not a claudev project."
+        exit 1
+    fi
+
+    local lock_file=".claudev/orchestrator.lock"
+
+    if [[ ! -f "$lock_file" ]]; then
+        info "Orchestrator not running (no lock file)"
+        exit 0
+    fi
+
+    local pid=$(cat "$lock_file" 2>/dev/null || echo "0")
+
+    if ! kill -0 "$pid" 2>/dev/null; then
+        info "Orchestrator not running (stale lock file, removing)"
+        rm -f "$lock_file"
+        exit 0
+    fi
+
+    info "Stopping orchestrator (PID $pid)..."
+    kill -TERM "$pid" 2>/dev/null || true
+
+    # Wait for graceful shutdown (max 5 seconds)
+    local waited=0
+    while kill -0 "$pid" 2>/dev/null && [[ $waited -lt 5 ]]; do
+        sleep 1
+        ((waited++))
+    done
+
+    if kill -0 "$pid" 2>/dev/null; then
+        warn "Orchestrator didn't stop gracefully, sending SIGKILL..."
+        kill -9 "$pid" 2>/dev/null || true
+    fi
+
+    rm -f "$lock_file"
+    success "Orchestrator stopped"
+
+    # Note: detached executors continue running
+    info "Note: Running executors will continue until completion"
+}
+
 # === Help ===
 
 cmd_help() {
@@ -1012,6 +1057,7 @@ cmd_help() {
     echo "Commands:"
     echo "  init         Initialize project and start orchestrator"
     echo "  start        Start orchestrator (project must be initialized)"
+    echo "  stop         Stop orchestrator (executors continue running)"
     echo "  status       Show project and orchestrator status"
     echo "  update       Update claudev to latest version"
     echo "  upgrade      Upgrade current project to latest claudev version"
@@ -1029,6 +1075,7 @@ cmd_help() {
 case "${1:-}" in
     init)   cmd_init ;;
     start)  cmd_start ;;
+    stop)   cmd_stop ;;
     status) cmd_status ;;
     update) cmd_update ;;
     upgrade) shift; cmd_upgrade "$@" ;;
