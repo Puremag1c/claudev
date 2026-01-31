@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.9.20] - 2026-01-31
+
+### Changed
+
+- **Streaming executor architecture**
+  - Senior executor больше не ждёт завершения ВСЕХ executors
+  - Подхватывает готовые задачи сразу, пока другие ещё работают
+  - `run-executors.sh`: убран блокирующий `wait`, добавлен `disown -a`
+  - `run-senior-executor.sh`: обрабатывает одну задачу за вызов
+
+### Affected files
+
+- `core/scripts/run-executors.sh` — non-blocking launch
+- `core/scripts/run-senior-executor.sh` — one task per call
+- `core/scripts/orchestrator.sh` — updated log message
+
+---
+
 ## [0.9.19] - 2026-01-31
 
 ### Fixed
