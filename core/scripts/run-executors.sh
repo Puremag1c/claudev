@@ -129,6 +129,11 @@ PROJECT_ROOT: $PROJECT_DIR"
     fi
 
     log "INFO" "Executor completed for $task_id"
+
+    # Fallback: ensure labels are updated even if agent didn't do it
+    # Agent should call: bd update --remove-label=executor --add-label=needs-review
+    # But we ensure it as safety net
+    bd update "$task_id" --remove-label=executor --add-label=needs-review 2>/dev/null || true
 }
 
 # === Main ===
