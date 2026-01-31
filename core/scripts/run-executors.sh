@@ -172,8 +172,9 @@ WORKTREE_PATH: $worktree_path"
 
     # Use stdin to avoid issues with prompts starting with "---"
     # Run claude in worktree directory for git isolation
+    # BEADS_NO_DAEMON=1 prevents daemon conflicts between worktrees
     # Note: must capture exit code BEFORE any other command
-    printf '%s' "$full_prompt" | timeout_cmd "$TASK_TIMEOUT" bash -c "cd '$worktree_path' && claude --model '$model'" > "$output_file" 2>&1
+    printf '%s' "$full_prompt" | timeout_cmd "$TASK_TIMEOUT" bash -c "cd '$worktree_path' && BEADS_NO_DAEMON=1 claude --model '$model'" > "$output_file" 2>&1
     local exit_code=$?
 
     # Always cleanup worktree (success or failure)
