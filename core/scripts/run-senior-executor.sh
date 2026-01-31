@@ -96,8 +96,6 @@ ACTION: Review and merge if ready"
     # Use stdin to avoid issues with prompts starting with "---"
     if printf '%s' "$full_prompt" | timeout_cmd "$TASK_TIMEOUT" claude --model opus > "$output_file" 2>&1; then
         log "INFO" "Review completed for $task_id"
-        # Remove needs-review label, add reviewed label
-        bd update "$task_id" --remove-label needs-review --add-label reviewed 2>/dev/null || true
     else
         local exit_code=$?
         if [ $exit_code -eq 124 ]; then
@@ -105,6 +103,16 @@ ACTION: Review and merge if ready"
         else
             log "ERROR" "Review failed for $task_id (exit: $exit_code)"
         fi
+    fi
+
+    # Always cleanup: if task is closed, remove needs-review label
+    # (Claude might have closed task before crashing)
+    local task_status
+    task_status=$(bd show "$task_id" --json 2>/dev/null | jq -r '.[0].status // "unknown"' 2>/dev/null || echo "unknown")
+
+    if [ "$task_status" = "closed" ]; then
+        log "INFO" "Task $task_id is closed, cleaning up labels"
+        bd update "$task_id" --remove-label needs-review --add-label reviewed 2>/dev/null || true
     fi
 }
 
