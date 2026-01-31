@@ -48,8 +48,10 @@ get_ready_tasks() {
     # Фильтруем:
     #   - type == task
     #   - исключаем служебные (triggers, milestones)
+    #   - sort -u для дедупликации (bd ready может вернуть дубликаты)
     bd ready --json 2>/dev/null | \
         jq -r '.[] | select(.issue_type == "task") | select(.title | test("^run-|^milestone:") | not) | .id' 2>/dev/null | \
+        sort -u | \
         head -n "$MAX_PARALLEL"
 }
 
@@ -104,8 +106,11 @@ TASK: $task_json
 PROJECT_ROOT: $PROJECT_DIR"
 
     # Use stdin to avoid issues with prompts starting with "---"
-    if ! printf '%s' "$full_prompt" | timeout_cmd "$TASK_TIMEOUT" claude --model "$model" > "$output_file" 2>&1; then
-        local exit_code=$?
+    # Note: must capture exit code BEFORE any other command
+    printf '%s' "$full_prompt" | timeout_cmd "$TASK_TIMEOUT" claude --model "$model" > "$output_file" 2>&1
+    local exit_code=$?
+
+    if [ $exit_code -ne 0 ]; then
         if [ $exit_code -eq 124 ]; then
             log "WARN" "Executor timeout for $task_id"
             # Increment retry counter (take max if multiple exist, remove old label)
