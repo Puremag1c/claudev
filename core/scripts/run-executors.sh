@@ -25,8 +25,45 @@ fi
 
 MAX_PARALLEL="${MAX_PARALLEL_EXECUTORS:-3}"
 TASK_TIMEOUT="${TASK_TIMEOUT:-10m}"
+WORKTREES_DIR="$PROJECT_DIR/.hype-worktrees"
 
 mkdir -p "$LOGS_DIR"
+
+# === Worktree management ===
+# Изоляция executors через git worktrees (избегает HEAD conflicts и beads import storms)
+
+create_worktree() {
+    local slot=$1
+    local task_id=$2
+    local worktree_path="$WORKTREES_DIR/executor-$slot"
+
+    # Cleanup if exists (stale from crash)
+    if [ -d "$worktree_path" ]; then
+        git worktree remove --force "$worktree_path" 2>/dev/null || rm -rf "$worktree_path"
+    fi
+
+    mkdir -p "$WORKTREES_DIR"
+
+    # Create worktree from current HEAD (detached)
+    # --detach avoids branch conflicts between parallel executors
+    if git worktree add --detach "$worktree_path" HEAD 2>/dev/null; then
+        echo "$worktree_path"
+        return 0
+    else
+        log "WARN" "Failed to create worktree for slot $slot, using main directory"
+        echo "$PROJECT_DIR"
+        return 1
+    fi
+}
+
+cleanup_worktree() {
+    local slot=$1
+    local worktree_path="$WORKTREES_DIR/executor-$slot"
+
+    if [ -d "$worktree_path" ]; then
+        git worktree remove --force "$worktree_path" 2>/dev/null || rm -rf "$worktree_path"
+    fi
+}
 
 log() {
     local level=$1
@@ -72,7 +109,9 @@ get_ready_tasks() {
 # === Run single executor ===
 
 run_executor() {
-    local task_id=$1
+    local slot=$1
+    local task_id=$2
+    local worktree_path=""
 
     # Check task status before claim (avoid race condition confusion)
     local current_status
@@ -90,6 +129,10 @@ run_executor() {
         return 0
     fi
 
+    # Create isolated worktree for this executor
+    worktree_path=$(create_worktree "$slot" "$task_id")
+    log "INFO" "Executor $slot using worktree: $worktree_path"
+
     # Get task details
     local task_json
     task_json=$(bd show "$task_id" --json 2>/dev/null || echo "[]")
@@ -100,6 +143,7 @@ run_executor() {
 
     if [ -z "$task_title" ]; then
         log "WARN" "Task $task_id not found or invalid (race condition?), skipping"
+        cleanup_worktree "$slot"
         return 0
     fi
 
@@ -123,12 +167,17 @@ run_executor() {
 ---
 TASK_ID: $task_id
 TASK: $task_json
-PROJECT_ROOT: $PROJECT_DIR"
+PROJECT_ROOT: $PROJECT_DIR
+WORKTREE_PATH: $worktree_path"
 
     # Use stdin to avoid issues with prompts starting with "---"
+    # Run claude in worktree directory for git isolation
     # Note: must capture exit code BEFORE any other command
-    printf '%s' "$full_prompt" | timeout_cmd "$TASK_TIMEOUT" claude --model "$model" > "$output_file" 2>&1
+    printf '%s' "$full_prompt" | timeout_cmd "$TASK_TIMEOUT" bash -c "cd '$worktree_path' && claude --model '$model'" > "$output_file" 2>&1
     local exit_code=$?
+
+    # Always cleanup worktree (success or failure)
+    cleanup_worktree "$slot"
 
     if [ $exit_code -ne 0 ]; then
         if [ $exit_code -eq 124 ]; then
@@ -197,6 +246,7 @@ main() {
 
     # Start executors in parallel (up to available slots)
     # Non-blocking: launch and return immediately (streaming architecture)
+    # Each executor gets its own slot number for worktree isolation
     local started=0
     for task_id in $tasks; do
         if [ $started -ge $available_slots ]; then
@@ -204,7 +254,8 @@ main() {
         fi
 
         # Launch in subshell, detached from parent
-        ( run_executor "$task_id" ) &
+        # Pass slot number for worktree isolation
+        ( run_executor "$started" "$task_id" ) &
         ((started++))
     done
 

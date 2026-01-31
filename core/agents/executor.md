@@ -23,6 +23,7 @@ model: по задаче (label model:*)
 - `TASK_ID` — ID задачи из run-executors.sh
 - `TASK` — JSON задачи из run-executors.sh
 - `PROJECT_ROOT` — корень проекта
+- `WORKTREE_PATH` — путь к изолированному worktree (если задан)
 
 ## Алгоритм работы
 
@@ -52,15 +53,27 @@ bd show $TASK_ID
 ```bash
 git fetch origin
 
-# Проверяем есть ли существующая ветка с нашей работой
-if git show-ref --verify --quiet "refs/remotes/origin/task/beads-$TASK_ID"; then
-    # Ветка существует — продолжаем работу (был return с review)
-    echo "Continuing work on existing branch..."
-    git checkout -B "task/beads-$TASK_ID" "origin/task/beads-$TASK_ID"
+# Если мы в worktree — уже на detached HEAD от main, просто создаём ветку
+if [ -n "$WORKTREE_PATH" ]; then
+    # В worktree: проверяем remote ветку и создаём локальную
+    if git show-ref --verify --quiet "refs/remotes/origin/task/beads-$TASK_ID"; then
+        # Ветка существует — fetch изменения
+        git checkout -B "task/beads-$TASK_ID" "origin/task/beads-$TASK_ID"
+    else
+        # Новая задача — ветка от HEAD (уже на main)
+        git checkout -b "task/beads-$TASK_ID"
+    fi
 else
-    # Новая задача — создаём ветку от main
-    git branch -D "task/beads-$TASK_ID" 2>/dev/null || true
-    git checkout -b "task/beads-$TASK_ID" origin/main
+    # Классический режим без worktree
+    if git show-ref --verify --quiet "refs/remotes/origin/task/beads-$TASK_ID"; then
+        # Ветка существует — продолжаем работу (был return с review)
+        echo "Continuing work on existing branch..."
+        git checkout -B "task/beads-$TASK_ID" "origin/task/beads-$TASK_ID"
+    else
+        # Новая задача — создаём ветку от main
+        git branch -D "task/beads-$TASK_ID" 2>/dev/null || true
+        git checkout -b "task/beads-$TASK_ID" origin/main
+    fi
 fi
 ```
 

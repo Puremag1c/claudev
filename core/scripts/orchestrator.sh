@@ -225,26 +225,11 @@ cleanup() {
     pkill -P $$ -KILL 2>/dev/null || true
 
     # Reset stale in_progress tasks (>5min old)
-    for task_id in $(bd list --status=in_progress --json 2>/dev/null | jq -r '.[].id' 2>/dev/null || true); do
-        local updated_at
-        updated_at=$(bd show "$task_id" --json 2>/dev/null | jq -r '.[0].updated_at' 2>/dev/null || echo "")
-        if [ -n "$updated_at" ]; then
-            local claimed_epoch now_epoch age
-            # Strip milliseconds and timezone for cross-platform parsing
-            local clean_date="${updated_at%%.*}"  # Remove .123Z or .123+03:00
-            clean_date="${clean_date%%+*}"        # Remove +03:00 if no milliseconds
-            clean_date="${clean_date%%Z*}"        # Remove Z if no milliseconds
-            # macOS: date -j -f, Linux: date -d
-            claimed_epoch=$(date -j -f "%Y-%m-%dT%H:%M:%S" "$clean_date" +%s 2>/dev/null || date -d "$clean_date" +%s 2>/dev/null || echo "0")
-            now_epoch=$(date +%s)
-            age=$((now_epoch - claimed_epoch))
-
-            if [ "$age" -gt 300 ]; then
-                log "INFO" "Resetting stale task $task_id (age: ${age}s)"
-                bd update "$task_id" --status=open --notes="Reset: stale at shutdown (${age}s old)" 2>/dev/null || true
-            fi
-        fi
-    done
+    local reset_count
+    reset_count=$(reset_stale_tasks 300 "stale at shutdown")
+    if [ "$reset_count" -gt 0 ]; then
+        log "INFO" "Reset $reset_count stale task(s) at shutdown"
+    fi
 
     rm -f "$LOCK_FILE"
     log "INFO" "Shutdown complete"
@@ -473,46 +458,52 @@ $retry_tasks
 # Reset in_progress tasks older than 10 minutes (executor likely crashed)
 
 check_stale_tasks() {
-    local stale_threshold=600  # 10 minutes in seconds
-    local reset_count=0
+    local reset_count
+    reset_count=$(reset_stale_tasks 600 "stale in_progress")
+    if [ "$reset_count" -gt 0 ]; then
+        log "INFO" "Reset $reset_count stale task(s)"
+    fi
+}
 
-    for task_id in $(bd list --status=in_progress --json 2>/dev/null | jq -r '.[].id' 2>/dev/null || true); do
-        local updated_at
-        updated_at=$(bd show "$task_id" --json 2>/dev/null | jq -r '.[0].updated_at' 2>/dev/null || echo "")
+# === Stale worktrees cleanup ===
+# Remove worktrees older than 15 minutes (executor crashed or orphaned)
 
-        if [ -n "$updated_at" ]; then
-            local task_epoch now_epoch age
-            # Strip milliseconds and timezone for cross-platform parsing
-            local clean_date="${updated_at%%.*}"
-            clean_date="${clean_date%%+*}"
-            clean_date="${clean_date%%Z*}"
-            # macOS: date -j -f, Linux: date -d
-            task_epoch=$(date -j -f "%Y-%m-%dT%H:%M:%S" "$clean_date" +%s 2>/dev/null || date -d "$clean_date" +%s 2>/dev/null || echo "0")
-            now_epoch=$(date +%s)
-            age=$((now_epoch - task_epoch))
+cleanup_stale_worktrees() {
+    local worktrees_dir="$PROJECT_DIR/.hype-worktrees"
+    local stale_threshold=900  # 15 minutes in seconds
+    local cleanup_count=0
 
-            if [ "$age" -gt "$stale_threshold" ]; then
-                log "WARN" "Resetting stale task $task_id (age: ${age}s, threshold: ${stale_threshold}s)"
-                # Append to notes instead of overwriting (preserve review feedback)
-                local current_notes
-                current_notes=$(bd show "$task_id" --json 2>/dev/null | jq -r '.[0].notes // ""' 2>/dev/null || echo "")
-                local new_notes
-                if [ -n "$current_notes" ]; then
-                    new_notes="$current_notes
+    if [ ! -d "$worktrees_dir" ]; then
+        return 0
+    fi
 
----
-Reset: stale in_progress (${age}s without update)"
-                else
-                    new_notes="Reset: stale in_progress (${age}s without update)"
-                fi
-                bd update "$task_id" --status=open --remove-label=executor --notes="$new_notes" 2>/dev/null || true
-                ((reset_count++)) || true
-            fi
+    local now
+    now=$(date +%s)
+
+    for worktree in "$worktrees_dir"/executor-*; do
+        if [ ! -d "$worktree" ]; then
+            continue
+        fi
+
+        # Get worktree modification time (cross-platform)
+        local mtime
+        mtime=$(stat -f %m "$worktree" 2>/dev/null || stat -c %Y "$worktree" 2>/dev/null || echo "0")
+        local age=$((now - mtime))
+
+        if [ "$age" -gt "$stale_threshold" ]; then
+            local slot
+            slot=$(basename "$worktree" | sed 's/executor-//')
+            log "INFO" "Removing stale worktree: $worktree (age: ${age}s)"
+            git worktree remove --force "$worktree" 2>/dev/null || rm -rf "$worktree"
+            ((cleanup_count++)) || true
         fi
     done
 
-    if [ "$reset_count" -gt 0 ]; then
-        log "INFO" "Reset $reset_count stale task(s)"
+    # Prune detached worktrees from git
+    git worktree prune 2>/dev/null || true
+
+    if [ "$cleanup_count" -gt 0 ]; then
+        log "INFO" "Cleaned up $cleanup_count stale worktree(s)"
     fi
 }
 
@@ -862,7 +853,10 @@ main() {
         # 7. Reset stale in_progress tasks (executor crashed without timeout)
         check_stale_tasks
 
-        # 8. Pause before next iteration
+        # 8. Cleanup stale worktrees (orphaned from crashed executors)
+        cleanup_stale_worktrees
+
+        # 9. Pause before next iteration
         log "INFO" "Pause ${ITERATION_DELAY}s..."
         sleep "$ITERATION_DELAY"
     done

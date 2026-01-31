@@ -70,3 +70,41 @@ $new_note"
     fi
 }
 export -f append_notes 2>/dev/null || true
+
+# reset_stale_tasks - сбрасывает in_progress задачи старше threshold секунд
+# Использование: reset_stale_tasks [THRESHOLD_SECONDS] [LOG_PREFIX]
+# По умолчанию: 600 секунд (10 минут)
+# Пример: reset_stale_tasks 300 "shutdown"
+reset_stale_tasks() {
+    local stale_threshold="${1:-600}"
+    local log_prefix="${2:-stale}"
+    local reset_count=0
+
+    for task_id in $(bd list --status=in_progress --json 2>/dev/null | jq -r '.[].id' 2>/dev/null || true); do
+        local updated_at
+        updated_at=$(bd show "$task_id" --json 2>/dev/null | jq -r '.[0].updated_at' 2>/dev/null || echo "")
+
+        if [ -n "$updated_at" ]; then
+            local task_epoch now_epoch age
+            # Strip milliseconds and timezone for cross-platform parsing
+            local clean_date="${updated_at%%.*}"
+            clean_date="${clean_date%%+*}"
+            clean_date="${clean_date%%Z*}"
+            # macOS: date -j -f, Linux: date -d
+            task_epoch=$(date -j -f "%Y-%m-%dT%H:%M:%S" "$clean_date" +%s 2>/dev/null || date -d "$clean_date" +%s 2>/dev/null || echo "0")
+            now_epoch=$(date +%s)
+            age=$((now_epoch - task_epoch))
+
+            if [ "$age" -gt "$stale_threshold" ]; then
+                # Append to notes instead of overwriting (preserve review feedback)
+                local updated_notes
+                updated_notes=$(append_notes "$task_id" "Reset: $log_prefix (${age}s without update)")
+                bd update "$task_id" --status=open --remove-label=executor --notes="$updated_notes" 2>/dev/null || true
+                ((reset_count++)) || true
+            fi
+        fi
+    done
+
+    echo "$reset_count"
+}
+export -f reset_stale_tasks 2>/dev/null || true

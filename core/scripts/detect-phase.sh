@@ -31,38 +31,26 @@ if ! command -v bd &> /dev/null; then
     exit 1
 fi
 
-# Собираем статистику из beads
-get_count() {
-    local filter=$1
-    bd list $filter --json 2>/dev/null | jq 'length' 2>/dev/null || echo "0"
-}
+# Собираем статистику из beads (batched - 2 запроса вместо 11)
+# Кэшируем JSON для всех фильтров через jq
+ALL_TASKS_JSON=$(bd list --json 2>/dev/null || echo "[]")
+CLOSED_TASKS_JSON=$(bd list --status=closed --json 2>/dev/null || echo "[]")
 
-has_label() {
-    local label=$1
-    # Milestones are closed immediately, so check closed tasks
-    bd list --status=closed --json 2>/dev/null | jq "[.[] | select(.labels[]? == \"$label\")] | length" 2>/dev/null || echo "0"
-}
+# Статистика из кэшированных данных
+TOTAL=$(echo "$ALL_TASKS_JSON" | jq 'length' 2>/dev/null || echo "0")
+OPEN=$(echo "$ALL_TASKS_JSON" | jq '[.[] | select(.status == "open")] | length' 2>/dev/null || echo "0")
+IN_PROGRESS=$(echo "$ALL_TASKS_JSON" | jq '[.[] | select(.status == "in_progress")] | length' 2>/dev/null || echo "0")
+CLOSED=$(echo "$CLOSED_TASKS_JSON" | jq 'length' 2>/dev/null || echo "0")
 
-has_open_task() {
-    local title_pattern=$1
-    bd list --status=open --json 2>/dev/null | jq "[.[] | select(.title | test(\"$title_pattern\"))] | length" 2>/dev/null || echo "0"
-}
+# Milestones (из closed tasks)
+HAS_PLANNING_DONE=$(echo "$CLOSED_TASKS_JSON" | jq '[.[] | select(.labels[]? == "milestone:planning-done")] | length' 2>/dev/null || echo "0")
+HAS_ANALYSTS_DONE=$(echo "$CLOSED_TASKS_JSON" | jq '[.[] | select(.labels[]? == "milestone:analysts-done")] | length' 2>/dev/null || echo "0")
+HAS_PLAN_REVIEWED=$(echo "$CLOSED_TASKS_JSON" | jq '[.[] | select(.labels[]? == "milestone:plan-reviewed")] | length' 2>/dev/null || echo "0")
+HAS_PROJECT_DONE=$(echo "$CLOSED_TASKS_JSON" | jq '[.[] | select(.labels[]? == "milestone:project-done")] | length' 2>/dev/null || echo "0")
 
-# Статистика
-TOTAL=$(get_count "")
-OPEN=$(get_count "--status=open")
-IN_PROGRESS=$(get_count "--status=in_progress")
-CLOSED=$(get_count "--status=closed")
-
-# Milestones (через labels)
-HAS_PLANNING_DONE=$(has_label "milestone:planning-done")
-HAS_ANALYSTS_DONE=$(has_label "milestone:analysts-done")
-HAS_PLAN_REVIEWED=$(has_label "milestone:plan-reviewed")
-HAS_PROJECT_DONE=$(has_label "milestone:project-done")
-
-# Trigger tasks для analysts
-ANALYST_TRIGGERS_OPEN=$(has_open_task "^run-analyst-")
-PLAN_REVIEW_OPEN=$(has_open_task "^run-plan-review$")
+# Trigger tasks для analysts (из open tasks)
+ANALYST_TRIGGERS_OPEN=$(echo "$ALL_TASKS_JSON" | jq '[.[] | select(.status == "open") | select(.title | test("^run-analyst-"))] | length' 2>/dev/null || echo "0")
+PLAN_REVIEW_OPEN=$(echo "$ALL_TASKS_JSON" | jq '[.[] | select(.status == "open") | select(.title == "run-plan-review")] | length' 2>/dev/null || echo "0")
 
 # === Debug output ===
 if [ "${CLAUDEV_DEBUG:-false}" = "true" ]; then
