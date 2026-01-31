@@ -1,5 +1,38 @@
 # Changelog
 
+## [1.1.0] - 2026-02-01
+
+### Added
+
+- **Git worktrees для изоляции executors**
+  - Каждый executor работает в своём worktree (`.hype-worktrees/executor-{slot}`)
+  - Избегает git HEAD conflicts между параллельными executors
+  - Предотвращает beads import storms при переключении веток
+  - Автоматическая очистка stale worktrees (>15 мин) через `cleanup_stale_worktrees()`
+
+- **Batched queries в detect-phase.sh**
+  - Сокращение с 11 bd вызовов до 2 за цикл
+  - Кэширование JSON и фильтрация через jq
+  - Уменьшает SQLite contention при параллельной работе
+
+- **Общая функция `reset_stale_tasks()` в common.sh**
+  - Переиспользуется в orchestrator.sh (shutdown + stale check)
+  - Параметры: threshold и log prefix
+  - Сохраняет review feedback через append_notes
+
+### Changed
+
+- `run_executor()` принимает slot для worktree изоляции
+- executor.md: добавлен WORKTREE_PATH в контекст
+- orchestrator.sh: добавлен шаг cleanup_stale_worktrees в main loop
+
+### Result
+
+- Возможность запускать 5-7 параллельных executors вместо 2
+- Меньше bd запросов на цикл → меньше contention
+
+---
+
 ## [1.0.0] - 2026-01-31
 
 ### Changed
