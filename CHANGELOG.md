@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.9.25] - 2026-01-31
+
+### Fixed
+
+- **`claudev stop` не останавливал executor'ы**
+  - Stop убивал только orchestrator, executor'ы продолжали работать в фоне
+  - Создавали ветки, обновляли задачи даже после stop
+  - Теперь `pkill -9 -f "claude --model"` убивает все процессы
+
+### Affected files
+
+- `bin/claudev` — cmd_stop() теперь убивает все claude процессы
+
+---
+
 ## [0.9.24] - 2026-01-31
 
 ### Fixed
