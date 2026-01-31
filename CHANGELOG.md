@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.9.24] - 2026-01-31
+
+### Fixed
+
+- **Exit code неправильно захватывался после `if !`**
+  - `$?` после `if !` не сохраняет оригинальный exit code
+  - Успешные executor'ы (exit 0) логировались как ERROR
+  - Исправлено: exit code захватывается сразу после команды
+
+- **Дубликаты задач из bd ready**
+  - bd ready мог возвращать одну задачу несколько раз
+  - Одна задача запускалась несколькими executor'ами
+  - Добавлен `sort -u` для дедупликации
+
+### Affected files
+
+- `core/scripts/run-executors.sh` — exit code capture + deduplication
+
+---
+
 ## [0.9.23] - 2026-01-31
 
 ### Fixed
