@@ -18,6 +18,7 @@ CLAUDEV_DIR="$PROJECT_DIR/.hype"
 LOGS_DIR="$PROJECT_DIR/logs"
 LOCK_FILE="$CLAUDEV_DIR/orchestrator.lock"
 CONFIG_FILE="$CLAUDEV_DIR/config.sh"
+HYPE_HOME="${HYPE_HOME:-$HOME/.hype}"
 
 # === Lock file (single instance) ===
 
@@ -118,11 +119,28 @@ validate_config() {
     log "INFO" "Config loaded: MAX_PARALLEL=$MAX_PARALLEL_EXECUTORS, RETRY=$RETRY_LIMIT, DELAY=${ITERATION_DELAY}s"
 }
 
-load_config() {
-    if [ ! -f "$CONFIG_FILE" ]; then
-        log "FATAL" "Config not found: $CONFIG_FILE. Run install.sh first."
-        exit 1
+ensure_hype_dir() {
+    # Защита от удаления .hype/ executor'ами
+    if [ ! -d "$CLAUDEV_DIR" ]; then
+        log "WARN" ".hype/ directory missing, recreating..."
+        mkdir -p "$CLAUDEV_DIR"
     fi
+
+    if [ ! -f "$CONFIG_FILE" ]; then
+        log "WARN" "Config file missing, restoring from template..."
+        local template="$HYPE_HOME/templates/config.template.sh"
+        if [ -f "$template" ]; then
+            cp "$template" "$CONFIG_FILE"
+            log "INFO" "Config restored from template"
+        else
+            log "FATAL" "Cannot restore config: template not found at $template"
+            exit 1
+        fi
+    fi
+}
+
+load_config() {
+    ensure_hype_dir
 
     # shellcheck source=/dev/null
     source "$CONFIG_FILE"
