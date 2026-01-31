@@ -49,7 +49,7 @@ get_ready_tasks() {
     #   - type == task
     #   - исключаем служебные (triggers, milestones)
     bd ready --json 2>/dev/null | \
-        jq -r '.[] | select(.type == "task") | select(.title | test("^run-|^milestone:") | not) | .id' 2>/dev/null | \
+        jq -r '.[] | select(.issue_type == "task") | select(.title | test("^run-|^milestone:") | not) | .id' 2>/dev/null | \
         head -n "$MAX_PARALLEL"
 }
 

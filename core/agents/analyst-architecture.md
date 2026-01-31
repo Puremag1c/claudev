@@ -47,7 +47,7 @@ bd list --json | jq '.[] | {id, title, description, labels}'
 # Найди tasks без model: label (это ошибка Architect!)
 # Проверяем каждую задачу отдельно для простоты
 missing_model=""
-for task_id in $(bd list --json | jq -r '.[] | select(.type == "task") | .id'); do
+for task_id in $(bd list --json | jq -r '.[] | select(.issue_type == "task") | .id'); do
     task_json=$(bd show "$task_id" --json)
     title=$(echo "$task_json" | jq -r '.[0].title')
 

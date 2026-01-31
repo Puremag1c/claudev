@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.9.19] - 2026-01-31
+
+### Fixed
+
+- **Executors не находили задачи из-за неправильного имени поля**
+  - jq-фильтр использовал `.type` вместо `.issue_type`
+  - Результат: "No ready tasks for executors" даже когда задачи есть
+  - Затронуто: run-executors.sh, analyst-architecture.md
+
+### Affected files
+
+- `core/scripts/run-executors.sh` — исправлен фильтр get_ready_tasks()
+- `core/agents/analyst-architecture.md` — исправлен фильтр проверки model label
+
+---
+
 ## [0.9.18] - 2026-01-31
 
 ### Fixed
