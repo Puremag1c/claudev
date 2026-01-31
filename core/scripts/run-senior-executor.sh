@@ -93,7 +93,7 @@ ACTION: Review and merge if ready"
 
 main() {
     log "INFO" "=========================================="
-    log "INFO" "SENIOR-EXECUTOR STARTED"
+    log "INFO" "SENIOR-EXECUTOR (streaming mode)"
     log "INFO" "=========================================="
 
     # Get tasks needing review
@@ -105,17 +105,18 @@ main() {
         exit 0
     fi
 
-    # Process SEQUENTIALLY (quality gate)
-    local count=0
-    for task_id in $tasks; do
-        ((count++))
-        log "INFO" "Review $count: $task_id"
-        process_review "$task_id"
-    done
+    # Process ONE task per call (streaming architecture)
+    # Quality gate: thorough review of each task
+    # Next iteration will pick up remaining tasks
+    local task_id
+    task_id=$(echo "$tasks" | head -n 1)
 
-    log "INFO" "Processed $count reviews"
-    bd sync 2>/dev/null || true
-    log "INFO" "SENIOR-EXECUTOR FINISHED"
+    if [ -n "$task_id" ]; then
+        log "INFO" "Review: $task_id"
+        process_review "$task_id"
+        bd sync 2>/dev/null || true
+        log "INFO" "Processed 1 review"
+    fi
 }
 
 main "$@"

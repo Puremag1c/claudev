@@ -160,27 +160,23 @@ main() {
     fi
 
     # Start executors in parallel (up to available slots)
+    # Non-blocking: launch and return immediately (streaming architecture)
     local started=0
     for task_id in $tasks; do
         if [ $started -ge $available_slots ]; then
             break
         fi
 
-        run_executor "$task_id" &
+        # Launch in subshell, detached from parent
+        ( run_executor "$task_id" ) &
         ((started++))
     done
 
-    log "INFO" "Started $started executors"
+    # Detach all background jobs (won't receive SIGHUP if parent exits)
+    disown -a 2>/dev/null || true
 
-    # Wait for all background jobs
-    wait
-
-    log "INFO" "All executors finished"
-
-    # Sync only if daemon is not running (daemon auto-syncs)
-    if ! bd sync --status 2>/dev/null | grep -q "auto-commit.*enabled"; then
-        bd sync 2>/dev/null || true
-    fi
+    log "INFO" "Launched $started executors (non-blocking)"
+    # No wait — returns immediately, orchestrator will check progress next iteration
 }
 
 main "$@"

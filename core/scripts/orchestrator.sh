@@ -678,8 +678,8 @@ $spec_content"
             ;;
 
         IMPLEMENTATION)
-            # Run executors for open tasks, senior executor for reviews
-            log "INFO" "IMPLEMENTATION: Running executors..."
+            # Streaming: launch executors (non-blocking) + process one review
+            log "INFO" "IMPLEMENTATION: Streaming cycle..."
             ./scripts/run-executors.sh
             ./scripts/run-senior-executor.sh
             ;;
