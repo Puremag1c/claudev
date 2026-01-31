@@ -32,9 +32,10 @@ log() {
 # === Get tasks needing review ===
 
 get_review_tasks() {
-    # Tasks with label=needs-review
+    # Tasks with label=needs-review but WITHOUT executor label
+    # (executor label means task is being worked on, not ready for review)
     bd list --status=in_progress --json 2>/dev/null | \
-        jq -r '.[] | select(.labels[]? == "needs-review") | .id' 2>/dev/null || true
+        jq -r '.[] | select((.labels | index("needs-review")) and ((.labels | index("executor")) | not)) | .id' 2>/dev/null || true
 }
 
 # === Process single review task ===

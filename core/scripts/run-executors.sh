@@ -68,7 +68,8 @@ run_executor() {
     fi
 
     # Try to claim the task (atomic via beads)
-    if ! bd update "$task_id" --status=in_progress --add-label=executor 2>/dev/null; then
+    # Remove needs-review in case this is a retry after timeout
+    if ! bd update "$task_id" --status=in_progress --add-label=executor --remove-label=needs-review 2>/dev/null; then
         log "INFO" "Task $task_id claim failed (race condition), skipping"
         return 0
     fi
