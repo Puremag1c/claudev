@@ -94,8 +94,14 @@ run_executor() {
     local task_json
     task_json=$(bd show "$task_id" --json 2>/dev/null || echo "[]")
 
+    # Validate task exists (race condition protection)
     local task_title
-    task_title=$(echo "$task_json" | jq -r '.[0].title // "Unknown"')
+    task_title=$(echo "$task_json" | jq -r '.[0].title // empty' 2>/dev/null || true)
+
+    if [ -z "$task_title" ]; then
+        log "WARN" "Task $task_id not found or invalid (race condition?), skipping"
+        return 0
+    fi
 
     # Get model from label (fallback: sonnet with warning)
     local model
