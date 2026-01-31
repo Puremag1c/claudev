@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.9.23] - 2026-01-31
+
+### Fixed
+
+- **Executor не обновлял labels после завершения**
+  - Скрипт логировал "completed" но не убирал `executor` label
+  - Задачи застревали: queue full, но процессы уже завершились
+  - Добавлен fallback: скрипт гарантирует обновление labels после успеха
+
+### Affected files
+
+- `core/scripts/run-executors.sh` — fallback label update после завершения
+
+---
+
 ## [0.9.22] - 2026-01-31
 
 ### Fixed
