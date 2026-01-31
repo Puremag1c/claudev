@@ -50,3 +50,23 @@ timeout_cmd() {
 
 # Экспортируем функцию для подоболочек
 export -f timeout_cmd 2>/dev/null || true
+
+# append_notes - добавляет к существующим notes вместо перезаписи
+# Использование: append_notes TASK_ID "new note text"
+# Сохраняет review feedback и другую важную информацию
+append_notes() {
+    local task_id="$1"
+    local new_note="$2"
+    local current_notes
+    current_notes=$(bd show "$task_id" --json 2>/dev/null | jq -r '.[0].notes // ""' 2>/dev/null || echo "")
+
+    if [ -n "$current_notes" ]; then
+        echo "$current_notes
+
+---
+$new_note"
+    else
+        echo "$new_note"
+    fi
+}
+export -f append_notes 2>/dev/null || true

@@ -475,7 +475,19 @@ check_stale_tasks() {
 
             if [ "$age" -gt "$stale_threshold" ]; then
                 log "WARN" "Resetting stale task $task_id (age: ${age}s, threshold: ${stale_threshold}s)"
-                bd update "$task_id" --status=open --remove-label=executor --notes="Reset: stale in_progress (${age}s without update)" 2>/dev/null || true
+                # Append to notes instead of overwriting (preserve review feedback)
+                local current_notes
+                current_notes=$(bd show "$task_id" --json 2>/dev/null | jq -r '.[0].notes // ""' 2>/dev/null || echo "")
+                local new_notes
+                if [ -n "$current_notes" ]; then
+                    new_notes="$current_notes
+
+---
+Reset: stale in_progress (${age}s without update)"
+                else
+                    new_notes="Reset: stale in_progress (${age}s without update)"
+                fi
+                bd update "$task_id" --status=open --remove-label=executor --notes="$new_notes" 2>/dev/null || true
                 ((reset_count++)) || true
             fi
         fi

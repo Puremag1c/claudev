@@ -140,15 +140,20 @@ PROJECT_ROOT: $PROJECT_DIR"
             local new_retry=$((current_retry + 1))
 
             # Remove old retry label if exists, add new one
+            # Use append_notes to preserve review feedback
+            local updated_notes
+            updated_notes=$(append_notes "$task_id" "Timeout at $(date '+%Y-%m-%d %H:%M:%S')")
             old_retry_label=$(echo "$task_json" | jq -r '.[0].labels[]? | select(startswith("retry:"))' 2>/dev/null | head -1)
             if [ -n "$old_retry_label" ]; then
-                bd update "$task_id" --status=open --remove-label=executor --remove-label="$old_retry_label" --add-label="retry:$new_retry" --notes="Timeout at $(date '+%Y-%m-%d %H:%M:%S')" 2>/dev/null || true
+                bd update "$task_id" --status=open --remove-label=executor --remove-label="$old_retry_label" --add-label="retry:$new_retry" --notes="$updated_notes" 2>/dev/null || true
             else
-                bd update "$task_id" --status=open --remove-label=executor --add-label="retry:$new_retry" --notes="Timeout at $(date '+%Y-%m-%d %H:%M:%S')" 2>/dev/null || true
+                bd update "$task_id" --status=open --remove-label=executor --add-label="retry:$new_retry" --notes="$updated_notes" 2>/dev/null || true
             fi
         else
             log "ERROR" "Executor failed for $task_id (exit: $exit_code)"
-            bd update "$task_id" --status=open --remove-label=executor --notes="Executor failed (exit: $exit_code)" 2>/dev/null || true
+            local updated_notes
+            updated_notes=$(append_notes "$task_id" "Executor failed (exit: $exit_code)")
+            bd update "$task_id" --status=open --remove-label=executor --notes="$updated_notes" 2>/dev/null || true
         fi
         return 0
     fi

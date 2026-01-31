@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.9.32] - 2026-01-31
+
+### Fixed
+
+- **Stale reset и timeout перезаписывали review feedback**
+  - При timeout/stale reset notes полностью перезаписывались
+  - Review feedback терялся → executor не знал причину возврата
+  - Исправлено: notes теперь аппендятся через `append_notes()` helper
+  - Старые notes сохраняются, новые добавляются с разделителем `---`
+
+### Affected files
+
+- `core/scripts/common.sh` — добавлена функция `append_notes()`
+- `core/scripts/orchestrator.sh` — stale check аппендит notes
+- `core/scripts/run-executors.sh` — timeout/error аппендит notes
+
+---
+
 ## [0.9.31] - 2026-01-31
 
 ### Fixed
