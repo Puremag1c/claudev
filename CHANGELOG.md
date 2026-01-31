@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.9.27] - 2026-01-31
+
+### Fixed
+
+- **Мусорные escape sequences в выводе логов**
+  - `^[]11;rgb:...` и `^[[25;1R` появлялись перед каждой строкой
+  - Причина: beads CLI запрашивал цвет терминала для определения темы
+  - Добавлен `NO_COLOR=1` в common.sh для подавления запросов
+
+### Added
+
+- **Цветной вывод логов**
+  - INFO/SUCCESS — зелёный
+  - WARN — жёлтый
+  - ERROR/FATAL — красный
+  - TASK_START — голубой
+  - Timestamp — серый
+
+### Affected files
+
+- `core/scripts/common.sh` — добавлен `export NO_COLOR=1`
+- `core/scripts/log.sh` — цветной вывод в централизованной функции
+- `core/scripts/run-analysts.sh` — цветной вывод
+- `core/scripts/run-executors.sh` — цветной вывод
+- `core/scripts/run-senior-executor.sh` — цветной вывод
+- `core/scripts/orchestrator.sh` — цветной вывод
+
+---
+
 ## [0.9.26] - 2026-01-31
 
 ### Fixed

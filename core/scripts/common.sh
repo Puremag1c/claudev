@@ -2,6 +2,9 @@
 # core/scripts/common.sh
 # Общие функции для всех скриптов claudev
 
+# Disable terminal color queries from beads (causes garbage escape sequences)
+export NO_COLOR=1
+
 # timeout_cmd - кроссплатформенный timeout (macOS + Linux)
 # Использование: timeout_cmd DURATION COMMAND [ARGS...]
 # Пример: timeout_cmd 5m claude -p "prompt"

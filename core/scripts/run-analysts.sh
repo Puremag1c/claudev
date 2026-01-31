@@ -28,7 +28,20 @@ TASK_TIMEOUT="${TASK_TIMEOUT:-10m}"
 mkdir -p "$LOGS_DIR"
 
 log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [RUN-ANALYSTS] $1: $2" | tee -a "$LOGS_DIR/claudev.log"
+    local level=$1
+    local msg=$2
+    local color=""
+    local reset="\033[0m"
+
+    case "$level" in
+        INFO)  color="\033[32m" ;;  # green
+        WARN)  color="\033[33m" ;;  # yellow
+        ERROR) color="\033[31m" ;;  # red
+    esac
+
+    # Colored output to terminal, plain to log file
+    printf "${color}%s [RUN-ANALYSTS] %s: %s${reset}\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$level" "$msg"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [RUN-ANALYSTS] $level: $msg" >> "$LOGS_DIR/claudev.log"
 }
 
 # All analysts

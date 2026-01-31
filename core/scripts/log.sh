@@ -34,6 +34,14 @@ LOG_FILE="$LOGS_DIR/claudev.log"
 # Создаём директорию если нет
 mkdir -p "$LOGS_DIR"
 
+# Цвета для терминала
+COLOR_RESET="\033[0m"
+COLOR_GREEN="\033[32m"
+COLOR_YELLOW="\033[33m"
+COLOR_RED="\033[31m"
+COLOR_CYAN="\033[36m"
+COLOR_GRAY="\033[90m"
+
 # Функция логирования
 log() {
     local agent=$1
@@ -42,11 +50,20 @@ log() {
     local timestamp
     timestamp=$(date '+%Y-%m-%d %H:%M:%S')
 
+    # Plain text to log file
     echo "$timestamp [$agent] $event: $message" >> "$LOG_FILE"
 
-    # Также выводим в stdout для интерактивного использования
+    # Colored output to terminal
     if [ -t 1 ]; then
-        echo "$timestamp [$agent] $event: $message"
+        local color=""
+        case "$event" in
+            INFO|TASK_DONE|SUCCESS)  color="$COLOR_GREEN" ;;
+            WARN|WARNING)            color="$COLOR_YELLOW" ;;
+            ERROR|FATAL|FAIL)        color="$COLOR_RED" ;;
+            TASK_START|START)        color="$COLOR_CYAN" ;;
+            *)                       color="$COLOR_GRAY" ;;
+        esac
+        printf "${COLOR_GRAY}%s${COLOR_RESET} [%s] ${color}%s${COLOR_RESET}: %s\n" "$timestamp" "$agent" "$event" "$message"
     fi
 }
 

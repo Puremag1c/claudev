@@ -26,7 +26,19 @@ TASK_TIMEOUT="${TASK_TIMEOUT:-10m}"
 mkdir -p "$LOGS_DIR"
 
 log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [SENIOR-EXECUTOR] $1: $2" | tee -a "$LOGS_DIR/claudev.log"
+    local level=$1
+    local msg=$2
+    local color="" reset="\033[0m" gray="\033[90m"
+
+    case "$level" in
+        INFO|SUCCESS)  color="\033[32m" ;;
+        WARN)          color="\033[33m" ;;
+        ERROR|FATAL)   color="\033[31m" ;;
+        TASK_START)    color="\033[36m" ;;
+    esac
+
+    printf "${gray}%s${reset} [SENIOR-EXECUTOR] ${color}%s${reset}: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$level" "$msg"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [SENIOR-EXECUTOR] $level: $msg" >> "$LOGS_DIR/claudev.log"
 }
 
 # === Get tasks needing review ===

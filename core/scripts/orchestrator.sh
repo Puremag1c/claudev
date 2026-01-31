@@ -47,7 +47,17 @@ mkdir -p "$LOGS_DIR"
 log() {
     local level=$1
     local message=$2
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [ORCHESTRATOR] $level: $message" | tee -a "$LOGS_DIR/claudev.log"
+    local color="" reset="\033[0m" gray="\033[90m"
+
+    case "$level" in
+        INFO|SUCCESS)  color="\033[32m" ;;
+        WARN)          color="\033[33m" ;;
+        ERROR|FATAL)   color="\033[31m" ;;
+        START)         color="\033[36m" ;;
+    esac
+
+    printf "${gray}%s${reset} [ORCHESTRATOR] ${color}%s${reset}: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$level" "$message"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [ORCHESTRATOR] $level: $message" >> "$LOGS_DIR/claudev.log"
 }
 
 # === Config validation ===
