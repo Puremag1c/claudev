@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.1.1] - 2026-02-01
+
+### Fixed
+
+- **Senior Executor получал пустой TASK_JSON** (P0)
+  - `run-senior-executor.sh` передавал `TASK:` в контекст
+  - `senior-executor.md` ожидал `$TASK_JSON` — переменная была undefined
+  - Результат: `TASK_TITLE` всегда был "Unknown" → некорректные PR titles
+  - Исправлено: senior-executor теперь сам вызывает `bd show $TASK_ID --json` (как executor)
+  - Все ссылки `$TASK` заменены на `$TASK_ID` для консистентности
+
+### Changed
+
+- `senior-executor.md` теперь самодостаточен — не зависит от переданного JSON
+- `run-senior-executor.sh` упрощён — передаёт только `TASK_ID` и `PROJECT_ROOT`
+- Единый паттерн для executor и senior-executor: агент сам получает данные через `bd show`
+
+---
+
 ## [1.1.0] - 2026-02-01
 
 ### Added
