@@ -20,32 +20,34 @@ model: opus
 ## Контекст (используй эти переменные)
 
 - `TASK_ID` — ID задачи из run-senior-executor.sh
-- `TASK_JSON` — JSON задачи из run-senior-executor.sh
 - `PROJECT_ROOT` — корень проекта
 
 ## Алгоритм работы
 
-### 1. Получи задачу из контекста
+### 1. Получи задачу и прочитай её данные
 
 ```bash
-# TASK_ID и TASK (JSON) переданы run-senior-executor.sh
-TASK="${TASK_ID}"  # Из контекста
-TASK_TITLE=$(echo "$TASK_JSON" | jq -r '.title // "Unknown"')
+TASK_ID="${TASK_ID}"  # Из контекста
+TASK_JSON=$(bd show $TASK_ID --json)
 
-bd show $TASK
+# Извлекаем данные
+TASK_TITLE=$(echo "$TASK_JSON" | jq -r '.[0].title // "Unknown"')
+TASK_NOTES=$(echo "$TASK_JSON" | jq -r '.[0].notes // ""')
+
+bd show $TASK_ID
 ```
 
 ### 2. Claim задачу
 
 ```bash
-bd update $TASK --status=in_progress --add-label=reviewing
+bd update $TASK_ID --status=in_progress --add-label=reviewing
 ```
 
 ### 3. Проверь ветку
 
 ```bash
 git fetch origin
-git checkout "task/beads-$TASK"
+git checkout "task/beads-$TASK_ID"
 git log --oneline origin/main..HEAD
 git diff origin/main..HEAD
 ```
@@ -56,7 +58,7 @@ git diff origin/main..HEAD
 # Проверь на secrets
 if git diff origin/main..HEAD | grep -qiE "(sk-|api_key=|password=|secret=|\.env)"; then
     echo "WARNING: Potential secrets detected!"
-    bd update $TASK --status=open --remove-label=reviewing --notes="SECURITY: Potential secrets in diff. Review required."
+    bd update $TASK_ID --status=open --remove-label=reviewing --notes="SECURITY: Potential secrets in diff. Review required."
     exit 1
 fi
 ```
@@ -92,7 +94,7 @@ fi
 # Проверяем доступность GitHub
 if command -v gh &>/dev/null && gh auth status &>/dev/null; then
     # PR workflow
-    gh pr create --title "$TASK_TITLE" --body "Task: $TASK" --base main --head "task/beads-$TASK"
+    gh pr create --title "$TASK_TITLE" --body "Task: $TASK_ID" --base main --head "task/beads-$TASK_ID"
     gh pr merge --squash --auto
 
     # Ждём CI если есть
@@ -101,26 +103,26 @@ if command -v gh &>/dev/null && gh auth status &>/dev/null; then
     fi
 
     # Cleanup ветки
-    git push origin --delete "task/beads-$TASK"
-    git branch -d "task/beads-$TASK"
+    git push origin --delete "task/beads-$TASK_ID"
+    git branch -d "task/beads-$TASK_ID"
 else
     # Local squash merge (executor commits are WIP, squash them)
     git checkout main
-    git merge --squash "task/beads-$TASK"
+    git merge --squash "task/beads-$TASK_ID"
     git commit -m "$TASK_TITLE
 
-Task: $TASK"
+Task: $TASK_ID"
     git push 2>/dev/null || echo "WARN: Cannot push to remote"
-    git branch -D "task/beads-$TASK"
+    git branch -D "task/beads-$TASK_ID"
 fi
 
-bd close $TASK --notes="Merged and deployed"
+bd close $TASK_ID --notes="Merged and deployed"
 ```
 
 **Если код плохой — возвращаем:**
 
 ```bash
-bd update $TASK --status=open \
+bd update $TASK_ID --status=open \
     --remove-label=needs-review --remove-label=reviewing \
     --notes="Review failed: <причина>. Fix and resubmit."
 ```
@@ -130,7 +132,7 @@ bd update $TASK --status=open \
 ```bash
 git revert HEAD --no-edit
 git push
-bd update $TASK --status=open --remove-label=reviewing --notes="CI failed: <error>. Reverted."
+bd update $TASK_ID --status=open --remove-label=reviewing --notes="CI failed: <error>. Reverted."
 ```
 
 ## Релиз (после всех задач closed)
@@ -162,14 +164,14 @@ fi
 **Простой (разные файлы):**
 ```bash
 git checkout main
-git merge --no-ff "task/beads-$TASK"
+git merge --no-ff "task/beads-$TASK_ID"
 # Resolve и commit
 ```
 
 **Сложный (семантический):**
 ```bash
-bd create --title="Resolve conflict: $TASK" --type=task --priority=0 --assignee=architect
-bd update $TASK --status=open --remove-label=reviewing --notes="Semantic conflict, escalated to Architect"
+bd create --title="Resolve conflict: $TASK_ID" --type=task --priority=0 --assignee=architect
+bd update $TASK_ID --status=open --remove-label=reviewing --notes="Semantic conflict, escalated to Architect"
 exit 0
 ```
 

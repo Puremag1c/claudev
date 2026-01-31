@@ -89,7 +89,6 @@ If approved, mark the task as complete with bd close."
 
 ---
 TASK_ID: $task_id
-TASK: $task_json
 PROJECT_ROOT: $PROJECT_DIR
 ACTION: Review and merge if ready"
 
