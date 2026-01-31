@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.9.31] - 2026-01-31
+
+### Fixed
+
+- **Executor игнорировал feedback от reviewer — бесконечный цикл return**
+  - После review return executor удалял ветку и начинал с нуля
+  - Не читал notes с причиной возврата
+  - Повторял ту же ошибку → reviewer снова возвращал → цикл
+  - Исправлено:
+    - Executor проверяет notes на feedback (grep "review failed")
+    - Если ветка существует на remote — продолжает работу, не пересоздаёт
+    - Явные инструкции: читать причину, исправлять конкретную проблему
+
+### Affected files
+
+- `core/agents/executor.md` — обработка feedback от reviewer
+
+---
+
 ## [0.9.30] - 2026-01-31
 
 ### Fixed

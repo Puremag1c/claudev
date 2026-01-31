@@ -25,22 +25,42 @@ model: по задаче (label model:*)
 
 ## Алгоритм работы
 
-### 1. Получи задачу
+### 1. Получи задачу и проверь feedback
 
 ```bash
 TASK_ID="${TASK_ID}"  # Из контекста
-bd show $TASK_ID
+TASK_JSON=$(bd show $TASK_ID --json)
 
-# Извлекаем title для эскалации (если понадобится)
-TASK_TITLE=$(bd show $TASK_ID --json | jq -r '.[0].title')
+# Извлекаем данные
+TASK_TITLE=$(echo "$TASK_JSON" | jq -r '.[0].title')
+TASK_NOTES=$(echo "$TASK_JSON" | jq -r '.[0].notes // ""')
+
+# КРИТИЧНО: Проверяем был ли feedback от reviewer
+if echo "$TASK_NOTES" | grep -qi "review failed\|returned\|fix and resubmit"; then
+    echo "=== REVIEW FEEDBACK DETECTED ==="
+    echo "$TASK_NOTES"
+    echo "================================"
+    # Запомни: нужно ИСПРАВИТЬ проблему, не повторить ту же ошибку!
+fi
+
+bd show $TASK_ID
 ```
 
-### 2. Создай ветку (идемпотентно)
+### 2. Создай или продолжи ветку
 
 ```bash
 git fetch origin
-git branch -D "task/beads-$TASK_ID" 2>/dev/null || true
-git checkout -b "task/beads-$TASK_ID" origin/main
+
+# Проверяем есть ли существующая ветка с нашей работой
+if git show-ref --verify --quiet "refs/remotes/origin/task/beads-$TASK_ID"; then
+    # Ветка существует — продолжаем работу (был return с review)
+    echo "Continuing work on existing branch..."
+    git checkout -B "task/beads-$TASK_ID" "origin/task/beads-$TASK_ID"
+else
+    # Новая задача — создаём ветку от main
+    git branch -D "task/beads-$TASK_ID" 2>/dev/null || true
+    git checkout -b "task/beads-$TASK_ID" origin/main
+fi
 ```
 
 ### 3. Прочитай что нужно сделать
@@ -49,7 +69,13 @@ git checkout -b "task/beads-$TASK_ID" origin/main
 - `files:` — какие файлы трогать
 - `done_when:` — критерий готовности
 
-### 4. Реализуй
+**Если есть feedback от reviewer (в notes):**
+- Внимательно прочитай ПРИЧИНУ возврата
+- Посмотри текущий код в ветке (git diff origin/main)
+- ИСПРАВЬ конкретную проблему, не переделывай всё заново
+- Reviewer вернул задачу потому что done_when НЕ выполнен — убедись что исправление это решает
+
+### 4. Реализуй (или исправь)
 
 - Пиши чистый код
 - Следуй существующему стилю проекта
