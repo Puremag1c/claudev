@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.9.28] - 2026-01-31
+
+### Changed
+
+- **Баланс scope constraint для аналитиков и архитектора**
+  - Раньше: "только если НАПРЯМУЮ в SPEC.md" — архитектор закрывал полезные quality gates
+  - Теперь: различаем "новый функционал" (out-of-scope) и "качество исполнения" (in-scope)
+  - Quality gates (loading states, validation, error handling) для заявленного функционала — оставляются
+  - Новый функционал не из SPEC — закрывается
+
+### Affected files
+
+- `core/agents/architect.md` — уточнены критерии plan_review
+- `core/agents/analyst-ux.md` — quality gates = in-scope
+- `core/agents/analyst-security.md` — security gates = in-scope
+- `core/agents/analyst-ops.md` — ops gates = in-scope
+- `core/agents/analyst-reliability.md` — reliability gates = in-scope
+- `core/agents/analyst-architecture.md` — architecture gates = in-scope
+
+---
+
 ## [0.9.27] - 2026-01-31
 
 ### Fixed

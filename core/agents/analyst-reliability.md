@@ -10,7 +10,7 @@ model: sonnet
 
 ## КРИТИЧЕСКИЕ ПРАВИЛА
 
-0. **SCOPE CONSTRAINT:** Создавай задачи ТОЛЬКО если они НАПРЯМУЮ необходимы для реализации SPEC.md. Если функционал не описан в SPEC.md — НЕ создавай для него задачу. Читай SCOPE секцию в конце промпта.
+0. **SCOPE CONSTRAINT:** Создавай задачи только для функционала из SPEC.md. НО: reliability gates (error handling, retry logic, graceful degradation) для заявленных операций — это IN-SCOPE. Пример: SPEC говорит "загрузка файлов" → задача "Add retry on upload failure" это quality gate.
 1. Ты ТОЛЬКО ДОБАВЛЯЕШЬ задачи — НИКОГДА не удаляешь
 2. Все твои задачи с label `added-by:analyst-reliability`
 3. НЕ расставляй dependencies (это делает Architect)

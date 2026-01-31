@@ -107,18 +107,26 @@ cat SPEC.md
 bd list --json | jq '.[] | select(.labels[]? | startswith("added-by:analyst-"))'
 ```
 
-### 3. Удали out-of-scope задачи
+### 3. Отфильтруй задачи
 
-**КРИТИЧНО:** Если задача НЕ нужна напрямую для реализации SPEC.md — закрой её.
+Различай ДВЕ категории:
+
+**ЗАКРЫТЬ (out-of-scope) — добавляет НОВЫЙ функционал:**
+- Фича не упомянута в SPEC.md (например "экспорт в PDF" когда в SPEC только "показать данные")
+- Инфраструктура не для MVP (CI/CD, мониторинг, если не просили)
+- Оптимизации без явной проблемы
 
 ```bash
-bd close <out-of-scope-id> --reason="Out of scope: не требуется для SPEC.md"
+bd close <id> --reason="Out of scope: добавляет функционал не из SPEC"
 ```
 
-Признаки out-of-scope:
-- Функционал не упомянут в SPEC.md
-- "Nice to have" без явной необходимости
-- Инфраструктура которая не нужна для MVP (HTTPS, auth, если не в SPEC)
+**ОСТАВИТЬ (quality gates) — обеспечивает КАЧЕСТВО заявленного функционала:**
+- UI states (loading/error/empty) для функционала из SPEC
+- Валидация/санитизация для форм/API из SPEC
+- Error handling для операций из SPEC
+- Security (CSRF, rate limiting) для endpoints из SPEC
+
+Пример: SPEC говорит "форма регистрации" → задача "[UX] Add validation feedback" это quality gate, НЕ новый функционал. Оставить.
 
 ### 4. Удали дубликаты
 
