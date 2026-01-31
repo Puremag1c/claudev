@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.9.18] - 2026-01-31
+
+### Fixed
+
+- **Architect: cycle detection в промпте использовал устаревшую логику**
+  - `grep -q "cycle"` давал false positive (слово "cycle" есть в "No dependency cycles detected")
+  - Исправлено: теперь `grep -q "→"` — проверяем реальный индикатор цикла
+
+- **Beads daemon auto-restart**
+  - Раньше: если daemon падал — orchestrator выходил с ошибкой
+  - Теперь: автоматическая попытка рестарта перед fatal exit
+
+### Affected files
+
+- `core/agents/architect.md` — исправлена проверка циклов
+- `core/scripts/orchestrator.sh` — auto-restart в check_beads()
+
+---
+
 ## [0.9.17] - 2026-01-31
 
 ### Added

@@ -123,7 +123,15 @@ load_config() {
 
 check_beads() {
     if ! bd sync --status &>/dev/null; then
-        log "FATAL" "Beads daemon not running. Run: bd daemon start"
+        log "WARN" "Beads daemon not running, attempting restart..."
+        if bd daemon start &>/dev/null; then
+            sleep 1
+            if bd sync --status &>/dev/null; then
+                log "INFO" "Beads daemon restarted successfully"
+                return 0
+            fi
+        fi
+        log "FATAL" "Beads daemon not running and restart failed. Run: bd daemon start"
         exit 1
     fi
 }

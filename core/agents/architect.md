@@ -70,8 +70,8 @@ done_when: tests pass"
 ```bash
 bd dep add <task-id> <depends-on-id>
 
-# СРАЗУ проверяем
-if bd dep cycles 2>&1 | grep -q "cycle"; then
+# СРАЗУ проверяем (ищем "→" — индикатор реального цикла)
+if bd dep cycles 2>&1 | grep -q "→"; then
     echo "ERROR: Cycle detected!"
     bd dep remove <task-id> <depends-on-id>
     # Пересмотри dependency graph
