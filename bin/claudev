@@ -802,6 +802,206 @@ cmd_delete() {
     done
 }
 
+# === Wipe ===
+
+cmd_wipe() {
+    if [[ ! -d ".beads" ]] && [[ ! -d ".claudev" ]]; then
+        error "Not a claudev/beads project."
+        exit 1
+    fi
+
+    echo "WIPE: Full project cleanup"
+    echo ""
+    echo "This will:"
+    echo "  1. Close ALL beads tasks"
+    echo "  2. Run: bd admin cleanup --force (removes .beads/)"
+    echo "  3. Run: bd doctor --fix"
+    echo "  4. Delete ALL claudev files including SPEC.md"
+    echo ""
+    echo "${RED}WARNING: This is irreversible!${NC}"
+    echo ""
+
+    read -p "Type 'WIPE' to confirm: " -r
+    echo ""
+
+    if [[ "$REPLY" != "WIPE" ]]; then
+        info "Cancelled."
+        exit 0
+    fi
+
+    # Stop orchestrator if running
+    if [[ -f ".claudev/orchestrator.lock" ]]; then
+        local pid=$(cat ".claudev/orchestrator.lock" 2>/dev/null || echo "0")
+        if kill -0 "$pid" 2>/dev/null; then
+            info "Stopping orchestrator (PID $pid)..."
+            kill "$pid" 2>/dev/null || true
+            sleep 1
+        fi
+    fi
+
+    # 1. Close all beads tasks
+    if [[ -d ".beads" ]] && command -v bd &>/dev/null; then
+        info "Closing all beads tasks..."
+        local task_ids
+        task_ids=$(bd list --json 2>/dev/null | jq -r '.[].id' 2>/dev/null || true)
+        if [[ -n "$task_ids" ]]; then
+            for task_id in $task_ids; do
+                bd close "$task_id" --reason="wipe" 2>/dev/null || true
+            done
+            success "Closed all tasks"
+        else
+            info "No tasks to close"
+        fi
+
+        # 2. bd admin cleanup --force
+        info "Running bd admin cleanup --force..."
+        bd admin cleanup --force 2>/dev/null || true
+        success "Beads cleanup done"
+
+        # 3. bd doctor --fix
+        info "Running bd doctor --fix..."
+        bd doctor --fix 2>/dev/null || true
+        success "Beads doctor done"
+    fi
+
+    # 4. Delete all claudev files
+    local deleted=()
+
+    # Core claudev
+    [[ -d ".claudev" ]] && rm -rf .claudev && deleted+=(".claudev/")
+    [[ -L ".claude/agents" ]] && rm -f .claude/agents && deleted+=(".claude/agents")
+    [[ -L ".claude/commands" ]] && rm -f .claude/commands && deleted+=(".claude/commands")
+    [[ -f ".claude/settings.json" ]] && rm -f .claude/settings.json && deleted+=(".claude/settings.json")
+    [[ -d ".claude" ]] && [[ -z "$(ls -A .claude 2>/dev/null)" ]] && rmdir .claude && deleted+=(".claude/")
+    [[ -L "scripts" ]] && rm -f scripts && deleted+=("scripts/")
+
+    # Logs and stats
+    [[ -d "logs" ]] && rm -rf logs && deleted+=("logs/")
+    [[ -d "stats" ]] && rm -rf stats && deleted+=("stats/")
+
+    # SPEC files
+    [[ -f "SPEC.md" ]] && rm -f SPEC.md && deleted+=("SPEC.md")
+    [[ -f "SPEC.draft.md" ]] && rm -f SPEC.draft.md && deleted+=("SPEC.draft.md")
+    [[ -f "PROJECT_CONTEXT.md" ]] && rm -f PROJECT_CONTEXT.md && deleted+=("PROJECT_CONTEXT.md")
+
+    # MCP config
+    [[ -f ".mcp.json" ]] && rm -f .mcp.json && deleted+=(".mcp.json")
+
+    # Clean .gitignore entries
+    if [[ -f ".gitignore" ]]; then
+        # Remove claudev section from .gitignore
+        if grep -q "# Claudev" .gitignore 2>/dev/null; then
+            # Remove from "# Claudev" to the next section or end of file
+            sed -i.bak '/^# Claudev$/,/^# [^C]/{ /^# [^C]/!d; }' .gitignore 2>/dev/null || \
+            sed -i '' '/^# Claudev$/,/^# [^C]/{ /^# [^C]/!d; }' .gitignore 2>/dev/null || true
+            # If that leaves only "# Claudev" at end, remove it too
+            sed -i.bak '/^# Claudev$/d' .gitignore 2>/dev/null || \
+            sed -i '' '/^# Claudev$/d' .gitignore 2>/dev/null || true
+            rm -f .gitignore.bak 2>/dev/null || true
+            deleted+=(".gitignore entries")
+        fi
+    fi
+
+    echo ""
+    success "WIPE complete!"
+    echo ""
+    echo "Deleted:"
+    for item in "${deleted[@]}"; do
+        echo "  - $item"
+    done
+    echo ""
+    info "Remaining: source code + .git/"
+}
+
+# === Reset Phase ===
+
+cmd_reset_phase() {
+    local target_phase="${1:-}"
+
+    if [[ ! -d ".claudev" ]]; then
+        error "Not a claudev project."
+        exit 1
+    fi
+
+    if [[ -z "$target_phase" ]]; then
+        echo "Usage: claudev reset-phase <PHASE>"
+        echo ""
+        echo "Available phases:"
+        echo "  PLANNING     - Reset to planning (delete all milestones)"
+        echo "  HELPERS      - Reset to analysts phase"
+        echo "  PLAN_REVIEW  - Reset to plan review (Architect reviews analysts)"
+        echo ""
+        echo "Current phase:"
+        if [[ -x "./scripts/detect-phase.sh" ]]; then
+            ./scripts/detect-phase.sh
+        else
+            warn "Cannot detect phase (scripts symlink missing)"
+        fi
+        exit 0
+    fi
+
+    target_phase=$(echo "$target_phase" | tr '[:lower:]' '[:upper:]')
+
+    case "$target_phase" in
+        PLANNING)
+            info "Resetting to PLANNING phase..."
+            # Delete all milestones except project-done
+            delete_milestone "milestone:planning-done"
+            delete_milestone "milestone:analysts-done"
+            delete_milestone "milestone:plan-reviewed"
+            success "Reset to PLANNING"
+            ;;
+
+        HELPERS)
+            info "Resetting to HELPERS phase..."
+            # Delete analysts-done and plan-reviewed
+            delete_milestone "milestone:analysts-done"
+            delete_milestone "milestone:plan-reviewed"
+            success "Reset to HELPERS (analysts will run again)"
+            ;;
+
+        PLAN_REVIEW)
+            info "Resetting to PLAN_REVIEW phase..."
+            # Delete only plan-reviewed
+            delete_milestone "milestone:plan-reviewed"
+            success "Reset to PLAN_REVIEW (Architect will review again)"
+            ;;
+
+        *)
+            error "Unknown phase: $target_phase"
+            echo "Valid phases: PLANNING, HELPERS, PLAN_REVIEW"
+            exit 1
+            ;;
+    esac
+
+    echo ""
+    info "New phase:"
+    if [[ -x "./scripts/detect-phase.sh" ]]; then
+        ./scripts/detect-phase.sh
+    fi
+}
+
+delete_milestone() {
+    local label="$1"
+
+    # Find tasks with this label and reopen them (delete milestone effect)
+    local task_ids
+    task_ids=$(bd list --status=closed --json 2>/dev/null | jq -r ".[] | select(.labels[]? == \"$label\") | .id" 2>/dev/null || true)
+
+    if [[ -n "$task_ids" ]]; then
+        for task_id in $task_ids; do
+            # Cannot reopen, so we delete the task entirely
+            # Actually bd doesn't have delete, so we close with a different reason
+            # The milestone detection uses labels on closed tasks
+            # To "remove" a milestone, we need to remove the label
+            bd update "$task_id" --remove-label="$label" 2>/dev/null || true
+            info "Removed $label from $task_id"
+        done
+    else
+        info "No tasks with $label found"
+    fi
+}
+
 # === Help ===
 
 cmd_help() {
@@ -810,14 +1010,16 @@ cmd_help() {
     echo "Usage: claudev <command>"
     echo ""
     echo "Commands:"
-    echo "  init      Initialize project and start orchestrator"
-    echo "  start     Start orchestrator (project must be initialized)"
-    echo "  status    Show project and orchestrator status"
-    echo "  update    Update claudev to latest version"
-    echo "  upgrade   Upgrade current project to latest claudev version"
-    echo "            --all    Upgrade all discovered projects"
-    echo "            --force  Force upgrade even if versions match"
-    echo "  delete    Remove claudev from project (keeps .beads, code)"
+    echo "  init         Initialize project and start orchestrator"
+    echo "  start        Start orchestrator (project must be initialized)"
+    echo "  status       Show project and orchestrator status"
+    echo "  update       Update claudev to latest version"
+    echo "  upgrade      Upgrade current project to latest claudev version"
+    echo "               --all    Upgrade all discovered projects"
+    echo "               --force  Force upgrade even if versions match"
+    echo "  delete       Remove claudev from project (keeps .beads, code, SPEC)"
+    echo "  wipe         Full cleanup: close tasks, remove .beads/, all claudev files"
+    echo "  reset-phase  Reset to earlier phase (PLANNING, HELPERS, PLAN_REVIEW)"
     echo ""
     echo "Home: $CLAUDEV_HOME"
 }
@@ -831,6 +1033,8 @@ case "${1:-}" in
     update) cmd_update ;;
     upgrade) shift; cmd_upgrade "$@" ;;
     delete) cmd_delete ;;
+    wipe)   cmd_wipe ;;
+    reset-phase) shift; cmd_reset_phase "$@" ;;
     -h|--help|help|"") cmd_help ;;
     *)
         error "Unknown command: $1"

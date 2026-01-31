@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.9.17] - 2026-01-31
+
+### Added
+
+- **`claudev wipe` command** — полная очистка проекта
+  - Закрывает все beads задачи
+  - Выполняет `bd admin cleanup --force` (удаляет `.beads/`)
+  - Выполняет `bd doctor --fix`
+  - Удаляет все файлы claudev включая SPEC.md, .mcp.json
+  - Очищает записи из .gitignore
+  - Результат: остаётся только исходный код и .git/
+
+- **`claudev reset-phase` command** — перезапуск фазы
+  - `reset-phase PLANNING` — сбросить до планирования
+  - `reset-phase HELPERS` — перезапустить аналитиков
+  - `reset-phase PLAN_REVIEW` — Architect заново проверит план аналитиков
+
+- **Auto-cleanup after successful iteration** — автоматическая очистка
+  - После `FINAL_REVIEW: PASSED` запускается `bd admin cleanup --force` и `bd doctor --fix`
+  - Очищает закрытые задачи и исправляет возможные проблемы
+
+### Affected files
+
+- `bin/claudev` — новые команды wipe, reset-phase
+- `core/scripts/orchestrator.sh` — auto-cleanup в check_and_create_done_milestone()
+
+---
+
 ## [0.9.16] - 2026-01-30
 
 ### Fixed

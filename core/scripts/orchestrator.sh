@@ -356,6 +356,12 @@ check_and_create_done_milestone() {
         if [ -n "$milestone_id" ]; then
             bd close "$milestone_id" --reason="Final review passed" 2>/dev/null || true
         fi
+
+        # Cleanup after successful iteration
+        log "INFO" "Running cleanup after successful iteration..."
+        bd admin cleanup --force 2>/dev/null || true
+        bd doctor --fix 2>/dev/null || true
+        log "INFO" "Cleanup complete"
     fi
 }
 
