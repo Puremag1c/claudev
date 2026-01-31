@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.9.30] - 2026-01-31
+
+### Fixed
+
+- **Race condition в executors** — задача исчезала между list и show
+  - `get_review_tasks()` возвращал ID задачи
+  - К моменту `bd show` задача уже закрыта/удалена другим процессом
+  - Claude получал пустой JSON → "No messages returned" crash
+  - Исправлено: валидация существования задачи перед вызовом Claude
+
+- **needs-review label оставался после crash Claude**
+  - Senior-executor делал merge, закрывал задачу, потом падал
+  - Cleanup код не выполнялся из-за ненулевого exit code
+  - Label `needs-review` оставался на закрытой задаче → повторные попытки ревью
+  - Исправлено: cleanup labels выполняется всегда если задача уже closed
+
+### Affected files
+
+- `core/scripts/run-executors.sh` — race condition protection
+- `core/scripts/run-senior-executor.sh` — race condition + label cleanup
+
+---
+
 ## [0.9.29] - 2026-01-31
 
 ### Fixed
