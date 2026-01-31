@@ -1,6 +1,6 @@
 # Claudev
 
-> v0.9.0 — project upgrade mechanism
+> v0.9.17
 
 Виртуальный отдел разработки на базе AI. Опишите что хотите — получите готовый продукт.
 
@@ -46,13 +46,15 @@ claudev init
 ## Команды
 
 ```bash
-claudev init      # Инициализация проекта + запуск
-claudev start     # Запуск orchestrator
-claudev status    # Статус проекта
-claudev update    # Обновление claudev (глобально)
-claudev upgrade   # Обновление текущего проекта
-claudev upgrade --all  # Обновление всех проектов
-claudev delete    # Удалить claudev из проекта (сохраняет код и .beads)
+claudev init         # Инициализация проекта + запуск
+claudev start        # Запуск orchestrator
+claudev status       # Статус проекта
+claudev update       # Обновление claudev (глобально)
+claudev upgrade      # Обновление текущего проекта
+claudev upgrade --all    # Обновление всех проектов
+claudev delete       # Удалить claudev из проекта (сохраняет код и .beads)
+claudev wipe         # Полная очистка: удаляет задачи, .beads/, все файлы claudev
+claudev reset-phase PLAN_REVIEW  # Перезапуск фазы (PLANNING, HELPERS, PLAN_REVIEW)
 ```
 
 ## Требования
