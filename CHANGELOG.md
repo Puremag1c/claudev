@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.9.22] - 2026-01-31
+
+### Fixed
+
+- **Race condition between executor and senior**
+  - Senior мог взять задачу которую executor только что claim'нул
+  - Происходило когда задача имела `needs-review` от предыдущего прогона (retry после timeout)
+  - Senior теперь исключает задачи с `executor` label
+  - Executor убирает `needs-review` при claim
+
+### Affected files
+
+- `core/scripts/run-senior-executor.sh` — фильтр исключает executor label
+- `core/scripts/run-executors.sh` — claim убирает needs-review
+
+---
+
 ## [0.9.21] - 2026-01-31
 
 ### Added
