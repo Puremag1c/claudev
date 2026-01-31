@@ -1,4 +1,4 @@
-# Claudev Architecture
+# Hype Architecture
 
 Многоагентная AI-система автоматической разработки на базе Claude Code.
 
@@ -105,7 +105,7 @@ INIT → PLANNING → HELPERS → PLAN_REVIEW → IMPLEMENTATION → FINAL_REVIE
 
 ## Конфигурация
 
-`.claudev/config.sh`:
+`.hype/config.sh`:
 
 ```bash
 MAX_PARALLEL_EXECUTORS=3    # Лимит параллельных Executors
@@ -190,7 +190,7 @@ main
 
 ```bash
 ./scripts/log.sh MANAGER INFO "Starting phase detection"
-./scripts/log.sh EXECUTOR TASK_START "claudev-abc"
+./scripts/log.sh EXECUTOR TASK_START "hype-abc"
 ./scripts/log.sh ORCHESTRATOR FATAL "Beads daemon not running"
 ```
 
@@ -198,11 +198,11 @@ main
 
 ```bash
 # Глобальная установка (один раз)
-curl -fsSL https://raw.githubusercontent.com/Puremag1c/claudev/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Puremag1c/hype/main/install.sh | bash
 
 # В любом проекте
 cd your-project
-claudev init
+hype init
 ```
 
 ## Зависимости

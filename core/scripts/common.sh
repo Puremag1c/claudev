@@ -1,6 +1,6 @@
 #!/bin/bash
 # core/scripts/common.sh
-# Общие функции для всех скриптов claudev
+# Общие функции для всех скриптов hype
 
 # Disable terminal color queries from beads (causes garbage escape sequences)
 export NO_COLOR=1

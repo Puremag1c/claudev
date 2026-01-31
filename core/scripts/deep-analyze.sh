@@ -14,7 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
 
-CLAUDEV_HOME="${CLAUDEV_HOME:-$HOME/.claudev}"
+HYPE_HOME="${HYPE_HOME:-$HOME/.hype}"
 PROJECT_ROOT="${PROJECT_ROOT:-$(pwd)}"
 
 # === Check if deep analysis needed ===
@@ -62,13 +62,13 @@ main() {
     # Check PROJECT_CONTEXT.md exists (should be created by analyze-project.sh first)
     if [[ ! -f "$PROJECT_ROOT/PROJECT_CONTEXT.md" ]]; then
         echo "Running basic analysis first..."
-        "$CLAUDEV_HOME/core/scripts/analyze-project.sh"
+        "$HYPE_HOME/core/scripts/analyze-project.sh"
     fi
 
     echo "Running deep analysis with Claude..."
 
     # Run analyzer agent
-    timeout_cmd 5m claude --model opus --print < "$CLAUDEV_HOME/core/agents/analyzer.md" << EOF
+    timeout_cmd 5m claude --model opus --print < "$HYPE_HOME/core/agents/analyzer.md" << EOF
 
 ---
 PROJECT_ROOT: $PROJECT_ROOT

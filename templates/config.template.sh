@@ -1,5 +1,5 @@
 #!/bin/bash
-# .claudev/config.sh — конфигурация Claudev
+# .hype/config.sh — конфигурация Hype
 # Скопировано из templates/config.template.sh при установке
 #
 # Редактируйте значения под свой проект.

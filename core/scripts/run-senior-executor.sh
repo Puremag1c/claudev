@@ -13,7 +13,7 @@ source "$SCRIPT_DIR/common.sh"
 
 PROJECT_DIR=$(pwd)
 LOGS_DIR="$PROJECT_DIR/logs"
-CONFIG_FILE="$PROJECT_DIR/.claudev/config.sh"
+CONFIG_FILE="$PROJECT_DIR/.hype/config.sh"
 
 # Load config
 if [ -f "$CONFIG_FILE" ]; then
@@ -38,7 +38,7 @@ log() {
     esac
 
     printf "${gray}%s${reset} [SENIOR-EXECUTOR] ${color}%s${reset}: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$level" "$msg"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [SENIOR-EXECUTOR] $level: $msg" >> "$LOGS_DIR/claudev.log"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [SENIOR-EXECUTOR] $level: $msg" >> "$LOGS_DIR/hype.log"
 }
 
 # === Get tasks needing review ===

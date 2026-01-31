@@ -1,16 +1,16 @@
 #!/bin/bash
-# claudev CLI — управление многоагентной системой разработки
+# hype CLI — управление многоагентной системой разработки
 #
 # Использование:
-#   claudev init      Инициализация проекта + запуск orchestrator
-#   claudev start     Запуск orchestrator (если уже инициализирован)
-#   claudev status    Статус проекта
-#   claudev update    Обновление claudev
+#   hype init      Инициализация проекта + запуск orchestrator
+#   hype start     Запуск orchestrator (если уже инициализирован)
+#   hype status    Статус проекта
+#   hype update    Обновление hype
 
 set -euo pipefail
 
-CLAUDEV_HOME="${CLAUDEV_HOME:-$HOME/.claudev}"
-VERSION=$(cat "$CLAUDEV_HOME/VERSION" 2>/dev/null || echo "dev")
+HYPE_HOME="${HYPE_HOME:-$HOME/.hype}"
+VERSION=$(cat "$HYPE_HOME/VERSION" 2>/dev/null || echo "dev")
 
 # === Colors ===
 
@@ -39,7 +39,7 @@ check_deps() {
         error "Missing dependencies: ${missing[*]}"
         echo ""
         echo "Install with:"
-        echo "  curl -fsSL https://raw.githubusercontent.com/Puremag1c/claudev/main/install.sh | bash"
+        echo "  curl -fsSL https://raw.githubusercontent.com/Puremag1c/hype/main/install.sh | bash"
         exit 1
     fi
 }
@@ -244,7 +244,7 @@ detect_project_type() {
 # === Init ===
 
 cmd_init() {
-    info "Initializing claudev in $(pwd)"
+    info "Initializing hype in $(pwd)"
 
     check_deps
 
@@ -287,19 +287,19 @@ cmd_init() {
         success "beads already initialized"
     fi
 
-    # .claudev/config.sh
-    mkdir -p .claudev
+    # .hype/config.sh
+    mkdir -p .hype
 
-    # Save claudev version for upgrade detection
-    echo "$VERSION" > .claudev/version
-    success "Saved claudev version ($VERSION)"
+    # Save hype version for upgrade detection
+    echo "$VERSION" > .hype/version
+    success "Saved hype version ($VERSION)"
 
-    if [[ ! -f ".claudev/config.sh" ]]; then
+    if [[ ! -f ".hype/config.sh" ]]; then
         info "Creating config..."
-        cp "$CLAUDEV_HOME/templates/config.template.sh" .claudev/config.sh
-        success "Created .claudev/config.sh"
+        cp "$HYPE_HOME/templates/config.template.sh" .hype/config.sh
+        success "Created .hype/config.sh"
     else
-        success ".claudev/config.sh exists"
+        success ".hype/config.sh exists"
     fi
 
     # Symlinks
@@ -311,10 +311,10 @@ cmd_init() {
     elif [[ -d ".claude/agents" ]]; then
         warn ".claude/agents is a directory, renaming to .claude/agents.backup"
         mv .claude/agents .claude/agents.backup
-        ln -sf "$CLAUDEV_HOME/core/agents" .claude/agents
+        ln -sf "$HYPE_HOME/core/agents" .claude/agents
         success "Linked .claude/agents (old dir backed up)"
     else
-        ln -sf "$CLAUDEV_HOME/core/agents" .claude/agents
+        ln -sf "$HYPE_HOME/core/agents" .claude/agents
         success "Linked .claude/agents"
     fi
 
@@ -324,10 +324,10 @@ cmd_init() {
     elif [[ -d ".claude/commands" ]]; then
         warn ".claude/commands is a directory, renaming to .claude/commands.backup"
         mv .claude/commands .claude/commands.backup
-        ln -sf "$CLAUDEV_HOME/core/commands" .claude/commands
+        ln -sf "$HYPE_HOME/core/commands" .claude/commands
         success "Linked .claude/commands (old dir backed up)"
     else
-        ln -sf "$CLAUDEV_HOME/core/commands" .claude/commands
+        ln -sf "$HYPE_HOME/core/commands" .claude/commands
         success "Linked .claude/commands"
     fi
 
@@ -337,11 +337,11 @@ cmd_init() {
     elif [[ -d "scripts" ]]; then
         warn "scripts/ directory exists, renaming to project-scripts/"
         mv scripts project-scripts
-        ln -sf "$CLAUDEV_HOME/core/scripts" scripts
+        ln -sf "$HYPE_HOME/core/scripts" scripts
         success "Linked scripts/ (old dir renamed to project-scripts/)"
         info "Your original scripts are in project-scripts/"
     else
-        ln -sf "$CLAUDEV_HOME/core/scripts" scripts
+        ln -sf "$HYPE_HOME/core/scripts" scripts
         success "Linked scripts/"
     fi
 
@@ -368,12 +368,12 @@ EOF
 
     # .gitignore
     if [[ -f ".gitignore" ]]; then
-        if ! grep -q "# Claudev" .gitignore 2>/dev/null; then
+        if ! grep -q "# Hype" .gitignore 2>/dev/null; then
             info "Updating .gitignore..."
             cat >> .gitignore << 'EOF'
 
-# Claudev
-.claudev/
+# Hype
+.hype/
 .claude/agents
 .claude/commands
 scripts
@@ -390,8 +390,8 @@ EOF
     else
         info "Creating .gitignore..."
         cat > .gitignore << 'EOF'
-# Claudev
-.claudev/
+# Hype
+.hype/
 .claude/agents
 .claude/commands
 scripts
@@ -414,7 +414,7 @@ EOF
             ;;
         existing)
             info "Detected existing project, analyzing..."
-            "$CLAUDEV_HOME/core/scripts/analyze-project.sh"
+            "$HYPE_HOME/core/scripts/analyze-project.sh"
             success "Created PROJECT_CONTEXT.md"
             ;;
         empty)
@@ -423,12 +423,12 @@ EOF
     esac
 
     # Save project type for orchestrator
-    echo "$project_type" > .claudev/project_type
+    echo "$project_type" > .hype/project_type
 
     # Auto-commit .gitignore if changed
     if git diff --quiet .gitignore 2>/dev/null || git ls-files --others --exclude-standard | grep -q "^\.gitignore$"; then
         git add .gitignore
-        git commit -m "chore: Add claudev entries to .gitignore" --no-verify -q 2>/dev/null && \
+        git commit -m "chore: Add hype entries to .gitignore" --no-verify -q 2>/dev/null && \
             success "Committed .gitignore"
     fi
 
@@ -438,14 +438,14 @@ EOF
     info "Starting orchestrator..."
     echo ""
 
-    exec "$CLAUDEV_HOME/core/scripts/orchestrator.sh"
+    exec "$HYPE_HOME/core/scripts/orchestrator.sh"
 }
 
 # === Start ===
 
 cmd_start() {
-    if [[ ! -d ".claudev" ]]; then
-        error "Not a claudev project. Run 'claudev init' first."
+    if [[ ! -d ".hype" ]]; then
+        error "Not a hype project. Run 'hype init' first."
         exit 1
     fi
 
@@ -459,22 +459,22 @@ cmd_start() {
     fi
 
     info "Starting orchestrator..."
-    exec "$CLAUDEV_HOME/core/scripts/orchestrator.sh"
+    exec "$HYPE_HOME/core/scripts/orchestrator.sh"
 }
 
 # === Status ===
 
 cmd_status() {
-    if [[ ! -d ".claudev" ]]; then
-        error "Not a claudev project."
+    if [[ ! -d ".hype" ]]; then
+        error "Not a hype project."
         exit 1
     fi
 
-    echo "claudev $VERSION"
+    echo "hype $VERSION"
     echo ""
 
     # Orchestrator status
-    local lock_file=".claudev/orchestrator.lock"
+    local lock_file=".hype/orchestrator.lock"
     if [[ -f "$lock_file" ]]; then
         local pid=$(cat "$lock_file" 2>/dev/null || echo "0")
         if kill -0 "$pid" 2>/dev/null; then
@@ -497,10 +497,10 @@ cmd_status() {
 # === Update ===
 
 cmd_update() {
-    info "Updating claudev..."
+    info "Updating hype..."
 
-    if [[ -d "$CLAUDEV_HOME/.git" ]]; then
-        cd "$CLAUDEV_HOME"
+    if [[ -d "$HYPE_HOME/.git" ]]; then
+        cd "$HYPE_HOME"
         git fetch origin
         # Handle force-pushed commits (diverged history)
         if ! git pull --ff-only 2>/dev/null; then
@@ -534,8 +534,8 @@ cmd_upgrade() {
     fi
 
     # Single project upgrade
-    if [[ ! -d ".claudev" ]]; then
-        error "Not a claudev project. Run 'claudev init' first."
+    if [[ ! -d ".hype" ]]; then
+        error "Not a hype project. Run 'hype init' first."
         exit 1
     fi
 
@@ -548,7 +548,7 @@ upgrade_project() {
 
     cd "$project_dir"
 
-    local project_version=$(cat .claudev/version 2>/dev/null || echo "unknown")
+    local project_version=$(cat .hype/version 2>/dev/null || echo "unknown")
 
     if [[ "$project_version" = "$VERSION" ]] && [[ "$force" != "true" ]]; then
         success "Project already at version $VERSION"
@@ -563,34 +563,34 @@ upgrade_project() {
     # Update symlinks
     if [[ -L ".claude/agents" ]]; then
         rm -f .claude/agents
-        ln -sf "$CLAUDEV_HOME/core/agents" .claude/agents
+        ln -sf "$HYPE_HOME/core/agents" .claude/agents
         success "Updated .claude/agents symlink"
     fi
 
     if [[ -L ".claude/commands" ]]; then
         rm -f .claude/commands
-        ln -sf "$CLAUDEV_HOME/core/commands" .claude/commands
+        ln -sf "$HYPE_HOME/core/commands" .claude/commands
         success "Updated .claude/commands symlink"
     fi
 
     if [[ -L "scripts" ]]; then
         rm -f scripts
-        ln -sf "$CLAUDEV_HOME/core/scripts" scripts
+        ln -sf "$HYPE_HOME/core/scripts" scripts
         success "Updated scripts/ symlink"
     fi
 
     # Update config.sh (merge strategy: keep user customizations)
-    if [[ -f ".claudev/config.sh" ]]; then
-        local template="$CLAUDEV_HOME/templates/config.template.sh"
+    if [[ -f ".hype/config.sh" ]]; then
+        local template="$HYPE_HOME/templates/config.template.sh"
         if [[ -f "$template" ]]; then
             # Check if user has customized the file
-            if diff -q "$template" ".claudev/config.sh" &>/dev/null; then
+            if diff -q "$template" ".hype/config.sh" &>/dev/null; then
                 # Not customized, safe to replace
-                cp "$template" ".claudev/config.sh"
-                success "Updated .claudev/config.sh"
+                cp "$template" ".hype/config.sh"
+                success "Updated .hype/config.sh"
             else
                 # User has customizations, keep them but warn
-                warn ".claudev/config.sh has customizations, keeping current version"
+                warn ".hype/config.sh has customizations, keeping current version"
                 info "Template at: $template"
             fi
         fi
@@ -600,7 +600,7 @@ upgrade_project() {
     update_gitignore
 
     # Update version marker
-    echo "$VERSION" > .claudev/version
+    echo "$VERSION" > .hype/version
 
     success "Upgraded to $VERSION"
 }
@@ -610,7 +610,7 @@ update_gitignore() {
         return
     fi
 
-    local entries=(".claudev/" ".claude/agents" ".claude/commands" "scripts" "project-scripts/" "logs/" "stats/" "PROJECT_CONTEXT.md" "SPEC.md" "SPEC.draft.md" ".mcp.json")
+    local entries=(".hype/" ".claude/agents" ".claude/commands" "scripts" "project-scripts/" "logs/" "stats/" "PROJECT_CONTEXT.md" "SPEC.md" "SPEC.draft.md" ".mcp.json")
     local added=()
 
     for entry in "${entries[@]}"; do
@@ -629,7 +629,7 @@ run_migrations() {
     local from_version="$1"
     local to_version="$2"
 
-    local migrations_dir="$CLAUDEV_HOME/migrations"
+    local migrations_dir="$HYPE_HOME/migrations"
     if [[ ! -d "$migrations_dir" ]]; then
         return
     fi
@@ -667,7 +667,7 @@ version_lt() {
 upgrade_all_projects() {
     local force="${1:-false}"
 
-    info "Discovering claudev projects..."
+    info "Discovering hype projects..."
 
     local projects=()
     local search_dirs=("$HOME/Projects" "$HOME/Code" "$HOME/Dev" "$HOME/Zen/Code" "$HOME/work")
@@ -676,12 +676,12 @@ upgrade_all_projects() {
         if [[ -d "$dir" ]]; then
             while IFS= read -r -d '' project; do
                 projects+=("$(dirname "$project")")
-            done < <(find "$dir" -maxdepth 3 -type d -name ".claudev" -print0 2>/dev/null)
+            done < <(find "$dir" -maxdepth 3 -type d -name ".hype" -print0 2>/dev/null)
         fi
     done
 
     if [[ ${#projects[@]} -eq 0 ]]; then
-        warn "No claudev projects found"
+        warn "No hype projects found"
         info "Searched in: ${search_dirs[*]}"
         return
     fi
@@ -701,15 +701,15 @@ upgrade_all_projects() {
 # === Delete ===
 
 cmd_delete() {
-    if [[ ! -d ".claudev" ]]; then
-        error "Not a claudev project."
+    if [[ ! -d ".hype" ]]; then
+        error "Not a hype project."
         exit 1
     fi
 
-    echo "This will remove claudev from the current project."
+    echo "This will remove hype from the current project."
     echo ""
     echo "Will delete:"
-    echo "  - .claudev/          (config, lock files)"
+    echo "  - .hype/          (config, lock files)"
     echo "  - .claude/agents     (symlink)"
     echo "  - .claude/commands   (symlink)"
     echo "  - .claude/settings.json"
@@ -733,7 +733,7 @@ cmd_delete() {
     fi
 
     # Stop orchestrator if running
-    local lock_file=".claudev/orchestrator.lock"
+    local lock_file=".hype/orchestrator.lock"
     if [[ -f "$lock_file" ]]; then
         local pid=$(cat "$lock_file" 2>/dev/null || echo "0")
         if kill -0 "$pid" 2>/dev/null; then
@@ -743,12 +743,12 @@ cmd_delete() {
         fi
     fi
 
-    # Remove claudev files
+    # Remove hype files
     local deleted=()
 
-    if [[ -d ".claudev" ]]; then
-        rm -rf .claudev
-        deleted+=(".claudev/")
+    if [[ -d ".hype" ]]; then
+        rm -rf .hype
+        deleted+=(".hype/")
     fi
 
     if [[ -L ".claude/agents" ]]; then
@@ -794,7 +794,7 @@ cmd_delete() {
     fi
 
     echo ""
-    success "Claudev removed from project"
+    success "Hype removed from project"
     echo ""
     echo "Deleted:"
     for item in "${deleted[@]}"; do
@@ -805,8 +805,8 @@ cmd_delete() {
 # === Wipe ===
 
 cmd_wipe() {
-    if [[ ! -d ".beads" ]] && [[ ! -d ".claudev" ]]; then
-        error "Not a claudev/beads project."
+    if [[ ! -d ".beads" ]] && [[ ! -d ".hype" ]]; then
+        error "Not a hype/beads project."
         exit 1
     fi
 
@@ -816,7 +816,7 @@ cmd_wipe() {
     echo "  1. Close ALL beads tasks"
     echo "  2. Run: bd admin cleanup --force (removes .beads/)"
     echo "  3. Run: bd doctor --fix"
-    echo "  4. Delete ALL claudev files including SPEC.md"
+    echo "  4. Delete ALL hype files including SPEC.md"
     echo ""
     echo "${RED}WARNING: This is irreversible!${NC}"
     echo ""
@@ -830,8 +830,8 @@ cmd_wipe() {
     fi
 
     # Stop orchestrator if running
-    if [[ -f ".claudev/orchestrator.lock" ]]; then
-        local pid=$(cat ".claudev/orchestrator.lock" 2>/dev/null || echo "0")
+    if [[ -f ".hype/orchestrator.lock" ]]; then
+        local pid=$(cat ".hype/orchestrator.lock" 2>/dev/null || echo "0")
         if kill -0 "$pid" 2>/dev/null; then
             info "Stopping orchestrator (PID $pid)..."
             kill "$pid" 2>/dev/null || true
@@ -864,11 +864,11 @@ cmd_wipe() {
         success "Beads doctor done"
     fi
 
-    # 4. Delete all claudev files
+    # 4. Delete all hype files
     local deleted=()
 
-    # Core claudev
-    [[ -d ".claudev" ]] && rm -rf .claudev && deleted+=(".claudev/")
+    # Core hype
+    [[ -d ".hype" ]] && rm -rf .hype && deleted+=(".hype/")
     [[ -L ".claude/agents" ]] && rm -f .claude/agents && deleted+=(".claude/agents")
     [[ -L ".claude/commands" ]] && rm -f .claude/commands && deleted+=(".claude/commands")
     [[ -f ".claude/settings.json" ]] && rm -f .claude/settings.json && deleted+=(".claude/settings.json")
@@ -889,14 +889,14 @@ cmd_wipe() {
 
     # Clean .gitignore entries
     if [[ -f ".gitignore" ]]; then
-        # Remove claudev section from .gitignore
-        if grep -q "# Claudev" .gitignore 2>/dev/null; then
-            # Remove from "# Claudev" to the next section or end of file
-            sed -i.bak '/^# Claudev$/,/^# [^C]/{ /^# [^C]/!d; }' .gitignore 2>/dev/null || \
-            sed -i '' '/^# Claudev$/,/^# [^C]/{ /^# [^C]/!d; }' .gitignore 2>/dev/null || true
-            # If that leaves only "# Claudev" at end, remove it too
-            sed -i.bak '/^# Claudev$/d' .gitignore 2>/dev/null || \
-            sed -i '' '/^# Claudev$/d' .gitignore 2>/dev/null || true
+        # Remove hype section from .gitignore
+        if grep -q "# Hype" .gitignore 2>/dev/null; then
+            # Remove from "# Hype" to the next section or end of file
+            sed -i.bak '/^# Hype$/,/^# [^C]/{ /^# [^C]/!d; }' .gitignore 2>/dev/null || \
+            sed -i '' '/^# Hype$/,/^# [^C]/{ /^# [^C]/!d; }' .gitignore 2>/dev/null || true
+            # If that leaves only "# Hype" at end, remove it too
+            sed -i.bak '/^# Hype$/d' .gitignore 2>/dev/null || \
+            sed -i '' '/^# Hype$/d' .gitignore 2>/dev/null || true
             rm -f .gitignore.bak 2>/dev/null || true
             deleted+=(".gitignore entries")
         fi
@@ -918,13 +918,13 @@ cmd_wipe() {
 cmd_reset_phase() {
     local target_phase="${1:-}"
 
-    if [[ ! -d ".claudev" ]]; then
-        error "Not a claudev project."
+    if [[ ! -d ".hype" ]]; then
+        error "Not a hype project."
         exit 1
     fi
 
     if [[ -z "$target_phase" ]]; then
-        echo "Usage: claudev reset-phase <PHASE>"
+        echo "Usage: hype reset-phase <PHASE>"
         echo ""
         echo "Available phases:"
         echo "  PLANNING     - Reset to planning (delete all milestones)"
@@ -1005,12 +1005,12 @@ delete_milestone() {
 # === Stop ===
 
 cmd_stop() {
-    if [[ ! -d ".claudev" ]]; then
-        error "Not a claudev project."
+    if [[ ! -d ".hype" ]]; then
+        error "Not a hype project."
         exit 1
     fi
 
-    local lock_file=".claudev/orchestrator.lock"
+    local lock_file=".hype/orchestrator.lock"
 
     if [[ ! -f "$lock_file" ]]; then
         info "Orchestrator not running (no lock file)"
@@ -1052,24 +1052,24 @@ cmd_stop() {
 # === Help ===
 
 cmd_help() {
-    echo "claudev $VERSION — multi-agent development system"
+    echo "hype $VERSION — multi-agent development system"
     echo ""
-    echo "Usage: claudev <command>"
+    echo "Usage: hype <command>"
     echo ""
     echo "Commands:"
     echo "  init         Initialize project and start orchestrator"
     echo "  start        Start orchestrator (project must be initialized)"
     echo "  stop         Stop orchestrator (executors continue running)"
     echo "  status       Show project and orchestrator status"
-    echo "  update       Update claudev to latest version"
-    echo "  upgrade      Upgrade current project to latest claudev version"
+    echo "  update       Update hype to latest version"
+    echo "  upgrade      Upgrade current project to latest hype version"
     echo "               --all    Upgrade all discovered projects"
     echo "               --force  Force upgrade even if versions match"
-    echo "  delete       Remove claudev from project (keeps .beads, code, SPEC)"
-    echo "  wipe         Full cleanup: close tasks, remove .beads/, all claudev files"
+    echo "  delete       Remove hype from project (keeps .beads, code, SPEC)"
+    echo "  wipe         Full cleanup: close tasks, remove .beads/, all hype files"
     echo "  reset-phase  Reset to earlier phase (PLANNING, HELPERS, PLAN_REVIEW)"
     echo ""
-    echo "Home: $CLAUDEV_HOME"
+    echo "Home: $HYPE_HOME"
 }
 
 # === Main ===

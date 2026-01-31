@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.0.0] - 2026-01-31
+
+### Changed
+
+- **Project renamed: claudev → hype**
+  - CLI command: `claudev` → `hype`
+  - Install directory: `~/.claudev` → `~/.hype`
+  - Project config: `.claudev/` → `.hype/`
+  - Log file: `logs/claudev.log` → `logs/hype.log`
+  - Repository: to be renamed on GitHub
+
+### Affected files
+
+- `bin/hype` — renamed from `bin/claudev`
+- `install.sh` — updated all paths and names
+- `core/scripts/*` — updated HYPE_HOME and .hype paths
+- `templates/*` — updated references
+- `docs/*`, `README.md` — updated documentation
+
+---
+
 ## [0.9.32] - 2026-01-31
 
 ### Fixed
@@ -151,14 +172,14 @@
 
 ### Fixed
 
-- **`claudev stop` не останавливал executor'ы**
+- **`hype stop` не останавливал executor'ы**
   - Stop убивал только orchestrator, executor'ы продолжали работать в фоне
   - Создавали ветки, обновляли задачи даже после stop
   - Теперь `pkill -9 -f "claude --model"` убивает все процессы
 
 ### Affected files
 
-- `bin/claudev` — cmd_stop() теперь убивает все claude процессы
+- `bin/hype` — cmd_stop() теперь убивает все claude процессы
 
 ---
 
@@ -218,14 +239,14 @@
 
 ### Added
 
-- **`claudev stop` command**
+- **`hype stop` command**
   - Graceful shutdown orchestrator (SIGTERM → wait 5s → SIGKILL)
   - Detached executors continue running until completion
-  - Safe for updates: `claudev stop && claudev update && claudev start`
+  - Safe for updates: `hype stop && claudev update && claudev start`
 
 ### Affected files
 
-- `bin/claudev` — added cmd_stop()
+- `bin/hype` — added cmd_stop()
 
 ---
 
@@ -286,7 +307,7 @@
 
 ### Added
 
-- **`claudev wipe` command** — полная очистка проекта
+- **`hype wipe` command** — полная очистка проекта
   - Закрывает все beads задачи
   - Выполняет `bd admin cleanup --force` (удаляет `.beads/`)
   - Выполняет `bd doctor --fix`
@@ -294,7 +315,7 @@
   - Очищает записи из .gitignore
   - Результат: остаётся только исходный код и .git/
 
-- **`claudev reset-phase` command** — перезапуск фазы
+- **`hype reset-phase` command** — перезапуск фазы
   - `reset-phase PLANNING` — сбросить до планирования
   - `reset-phase HELPERS` — перезапустить аналитиков
   - `reset-phase PLAN_REVIEW` — Architect заново проверит план аналитиков
@@ -305,7 +326,7 @@
 
 ### Affected files
 
-- `bin/claudev` — новые команды wipe, reset-phase
+- `bin/hype` — новые команды wipe, reset-phase
 - `core/scripts/orchestrator.sh` — auto-cleanup в check_and_create_done_milestone()
 
 ---
@@ -395,7 +416,7 @@
   - Исправлено в orchestrator.sh (v0.9.12), но не в helper скриптах
   - Теперь run-analysts.sh, run-executors.sh, run-senior-executor.sh передают промпты через stdin
 
-- **`claudev update` fails after force-push** (P1)
+- **`hype update` fails after force-push** (P1)
   - `git pull --ff-only` падал когда история разошлась
   - Теперь автоматически делает `git reset --hard origin/main` при diverged history
 
@@ -407,7 +428,7 @@
 - `core/scripts/run-senior-executor.sh` — source common.sh, timeout → timeout_cmd
 - `core/scripts/deep-analyze.sh` — source common.sh, timeout → timeout_cmd
 - `core/scripts/orchestrator.sh` — source common.sh, удалена локальная timeout_cmd
-- `bin/claudev` — добавлены SPEC.md, SPEC.draft.md в .gitignore шаблон
+- `bin/hype` — добавлены SPEC.md, SPEC.draft.md в .gitignore шаблон
 
 ---
 
@@ -464,7 +485,7 @@
 
 ### Affected files
 
-- `bin/claudev` — добавлен auto-commit в `cmd_init()`
+- `bin/hype` — добавлен auto-commit в `cmd_init()`
 
 ---
 
@@ -474,12 +495,12 @@
 
 - **Неполный .gitignore при init** (P1)
   - Симлинки и служебные папки не игнорировались
-  - Добавлены: `.claudev/`, `.claude/agents`, `.claude/commands`, `scripts`, `project-scripts/`
+  - Добавлены: `.hype/`, `.claude/agents`, `.claude/commands`, `scripts`, `project-scripts/`
   - Исправлено для init и upgrade
 
 ### Affected files
 
-- `bin/claudev` — обновлён .gitignore template и `update_gitignore()`
+- `bin/hype` — обновлён .gitignore template и `update_gitignore()`
 
 ---
 
@@ -508,7 +529,7 @@
 
 ### Fixed
 
-- **Critical: `claudev init` breaks on projects with existing `scripts/` folder** (P0)
+- **Critical: `hype init` breaks on projects with existing `scripts/` folder** (P0)
   - Previous behavior: created symlink INSIDE the folder (`scripts/scripts → ...`)
   - New behavior: renames existing folder to `project-scripts/`, then creates proper symlink
   - Same fix applied to `.claude/agents` and `.claude/commands`
@@ -526,13 +547,13 @@
   - Quick-fix command shown in error output
 
 - **Debug mode for troubleshooting** (P3)
-  - New config option: `DEBUG=true` in `.claudev/config.sh`
+  - New config option: `DEBUG=true` in `.hype/config.sh`
   - When enabled, `detect-phase.sh` outputs all variable values
   - Helps diagnose phase detection issues
 
 ### Affected files
 
-- `bin/claudev` — improved symlink handling in `cmd_init()`
+- `bin/hype` — improved symlink handling in `cmd_init()`
 - `core/scripts/orchestrator.sh` — health check, stderr logging
 - `core/scripts/detect-phase.sh` — debug output
 - `templates/config.template.sh` — new DEBUG option
@@ -544,7 +565,7 @@
 ### Fixed
 
 - **Auto-fix permissions after sudo install**
-  - If `~/.claudev` is owned by root (from previous `sudo bash install.sh`), installer now automatically fixes ownership
+  - If `~/.hype` is owned by root (from previous `sudo bash install.sh`), installer now automatically fixes ownership
   - Asks for sudo password only when needed, with clear explanation
   - Prevents "Permission denied" errors on subsequent updates
 
@@ -609,16 +630,16 @@ Without this fix, agents would receive empty results from `bd list --format=json
 
 ### Added
 
-- **Version tracking**: Сохранение версии claudev в `.claudev/version` при `init`
+- **Version tracking**: Сохранение версии claudev в `.hype/version` при `init`
   - Позволяет определить нужно ли обновление проекта
 
-- **`claudev upgrade` command**: Обновление текущего проекта до последней версии
+- **`hype upgrade` command**: Обновление текущего проекта до последней версии
   - Обновление symlinks (.claude/agents, .claude/commands, scripts/)
   - Merge стратегия для config.sh (сохраняет пользовательские изменения)
   - Автоматическое добавление новых записей в .gitignore
   - Поддержка migration scripts для версионных изменений
 
-- **`claudev upgrade --all`**: Обновление всех известных проектов
+- **`hype upgrade --all`**: Обновление всех известных проектов
   - Автоматический поиск в ~/Projects, ~/Code, ~/Dev, ~/Zen/Code, ~/work
   - Поиск до 3 уровней вложенности
   - `--force` флаг для принудительного обновления
@@ -658,7 +679,7 @@ Without this fix, agents would receive empty results from `bd list --format=json
 
 ### Fixed
 - **PATH configuration**: Added `~/.local/bin` to PATH (Claude Code installation directory)
-  - Previously only `~/.claudev/bin` was added, causing "Claude Code NOT INSTALLED" verification failure
+  - Previously only `~/.hype/bin` was added, causing "Claude Code NOT INSTALLED" verification failure
 
 ### Improved
 - **Claude Code installation**: Graceful error handling if network fails
@@ -674,7 +695,7 @@ Without this fix, agents would receive empty results from `bd list --format=json
 Полный архитектурный аудит пройден. MCP интеграция добавлена. Система готова к первым реальным запускам.
 
 ### Added
-- **MCP Integration** (claudev-5xm): Автоматическая настройка MCP серверов при `claudev init`
+- **MCP Integration** (claudev-5xm): Автоматическая настройка MCP серверов при `hype init`
   - **Playwright**: Автоматически (browser automation, тестирование)
   - **GitHub**: Автоматически если `gh auth` настроен (токен НЕ хранится в файле — динамически через `gh auth token`)
   - **PostgreSQL**: Шаблон с placeholder (требует DATABASE_URL)
@@ -684,7 +705,7 @@ Without this fix, agents would receive empty results from `bd list --format=json
 ### Verified
 - **Синтаксис**: Все 10 bash скриптов прошли `bash -n` проверку
 - **Beads CLI**: Все используемые команды существуют (`bd children`, `bd dep cycles`, `bd epic close-eligible`)
-- **Execution paths**: Все пути от `claudev init` до `DONE` фазы проверены
+- **Execution paths**: Все пути от `hype init` до `DONE` фазы проверены
 - **Failure modes**: Lock files, stale task reset, draft TTL, WIP commits — всё работает
 - **Data flow**: Beads = источник правды для задач, Git = для кода
 
@@ -704,10 +725,10 @@ Without this fix, agents would receive empty results from `bd list --format=json
 **Epic:** claudev-h9q — CLOSED
 
 ### Added
-- **claudev-260**: Auto-start beads daemon в `claudev init`
+- **claudev-260**: Auto-start beads daemon в `hype init`
   - Проверка `bd daemon status`, автозапуск если не работает
   - Пользователю не нужно вручную запускать daemon
-- **claudev-0ss**: GitHub onboarding flow в `claudev init`
+- **claudev-0ss**: GitHub onboarding flow в `hype init`
   - Проверка `gh auth status`
   - Помощь с авторизацией (`gh auth login`)
   - Предложение создать repo (`gh repo create`) если нет remote
@@ -753,8 +774,8 @@ Without this fix, agents would receive empty results from `bd list --format=json
   - Затронуты: orchestrator.sh, run-executors.sh, run-senior-executor.sh, run-analysts.sh, detect-phase.sh
 
 ### Added
-- **Existing project support**: `claudev init` анализирует существующий код и создаёт PROJECT_CONTEXT.md
-- **Delete command**: `claudev delete` для полного удаления claudev из проекта
+- **Existing project support**: `hype init` анализирует существующий код и создаёт PROJECT_CONTEXT.md
+- **Delete command**: `hype delete` для полного удаления claudev из проекта
 - **Deep analysis**: `analyze-project.sh` определяет стек, фреймворк, зависимости
 - **Tech Writer integration**: Учитывает PROJECT_CONTEXT.md при создании SPEC.md
 
@@ -763,14 +784,14 @@ Without this fix, agents would receive empty results from `bd list --format=json
 ## [0.6.0] - 2026-01-27
 
 ### Added
-- **Global installation**: claudev устанавливается в `~/.claudev/` и доступен глобально
-- **claudev init**: Инициализация проекта командой `claudev init` в любой директории
-- **Project-local config**: `.claudev/config.sh` создаётся в проекте, не глобально
+- **Global installation**: claudev устанавливается в `~/.hype/` и доступен глобально
+- **claudev init**: Инициализация проекта командой `hype init` в любой директории
+- **Project-local config**: `.hype/config.sh` создаётся в проекте, не глобально
 - **Symlinked agents**: `.claude/agents/` ссылается на глобальные агенты
 
 ### Changed
 - install.sh теперь устанавливает глобально (не в текущую папку)
-- bin/claudev переписан как полноценный CLI с командами (init, run, status, delete)
+- bin/hype переписан как полноценный CLI с командами (init, run, status, delete)
 
 ---
 
@@ -1008,7 +1029,7 @@ Without this fix, agents would receive empty results from `bd list --format=json
 - README для пользователей
 
 ### Changed
-- Очистка .claudev/ от файлов разработки после установки
+- Очистка .hype/ от файлов разработки после установки
 - Пользователь видит только рабочие файлы (core/, templates/, install.sh)
 
 ## [0.1] - 2026-01-24

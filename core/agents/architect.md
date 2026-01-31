@@ -131,7 +131,7 @@ bd close <id> --reason="Out of scope: добавляет функционал н
 ### 4. Удали дубликаты
 
 ```bash
-bd close <duplicate-id> --reason="Дубликат claudev-xxx"
+bd close <duplicate-id> --reason="Дубликат hype-xxx"
 ```
 
 ### 5. Разреши противоречия

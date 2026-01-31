@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 #
-# Claudev Global Installer
-# Устанавливает claudev в ~/.claudev/ для использования в любых проектах
+# Hype Global Installer
+# Устанавливает hype в ~/.hype/ для использования в любых проектах
 #
 # Использование:
-#   curl -fsSL https://raw.githubusercontent.com/Puremag1c/claudev/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/Puremag1c/hype/main/install.sh | bash
 #
 
 set -euo pipefail
 
-CLAUDEV_HOME="${CLAUDEV_HOME:-$HOME/.claudev}"
-REPO_URL="https://github.com/Puremag1c/claudev.git"
+HYPE_HOME="${HYPE_HOME:-$HOME/.hype}"
+REPO_URL="https://github.com/Puremag1c/hype.git"
 
 # === Colors ===
 
@@ -64,24 +64,24 @@ check_network() {
 
 echo ""
 echo "╔══════════════════════════════════════╗"
-echo "║       Claudev Global Installer       ║"
+echo "║       Hype Global Installer       ║"
 echo "╚══════════════════════════════════════╝"
 echo ""
 
 # === Fix permissions if needed ===
-# If ~/.claudev exists but is owned by root (from previous sudo install),
+# If ~/.hype exists but is owned by root (from previous sudo install),
 # fix ownership so git and other operations work correctly
 
-if [[ -d "$CLAUDEV_HOME" ]]; then
-    if [[ ! -w "$CLAUDEV_HOME" ]] || [[ -d "$CLAUDEV_HOME/.git" && ! -w "$CLAUDEV_HOME/.git" ]]; then
-        warn "~/.claudev has incorrect permissions (probably from previous sudo install)"
+if [[ -d "$HYPE_HOME" ]]; then
+    if [[ ! -w "$HYPE_HOME" ]] || [[ -d "$HYPE_HOME/.git" && ! -w "$HYPE_HOME/.git" ]]; then
+        warn "~/.hype has incorrect permissions (probably from previous sudo install)"
         info "Fixing permissions... (sudo password may be required)"
 
-        if sudo chown -R "$(whoami)" "$CLAUDEV_HOME"; then
+        if sudo chown -R "$(whoami)" "$HYPE_HOME"; then
             success "Permissions fixed"
         else
             error "Cannot fix permissions"
-            echo "  Run manually: sudo chown -R $(whoami) ~/.claudev"
+            echo "  Run manually: sudo chown -R $(whoami) ~/.hype"
             exit 1
         fi
     fi
@@ -267,9 +267,9 @@ install_binaries_direct() {
     fi
 }
 
-# === Step 1: Install/Update claudev ===
+# === Step 1: Install/Update hype ===
 
-echo "Step 1: Installing claudev to $CLAUDEV_HOME"
+echo "Step 1: Installing hype to $HYPE_HOME"
 echo ""
 
 # Check network before starting
@@ -278,32 +278,32 @@ if ! check_network; then
     exit 1
 fi
 
-if [[ -d "$CLAUDEV_HOME" ]]; then
-    if [[ -d "$CLAUDEV_HOME/.git" ]]; then
+if [[ -d "$HYPE_HOME" ]]; then
+    if [[ -d "$HYPE_HOME/.git" ]]; then
         info "Updating existing installation..."
-        cd "$CLAUDEV_HOME"
+        cd "$HYPE_HOME"
         if retry git pull --ff-only; then
             success "Updated to $(cat VERSION)"
         else
             warn "Update failed, using existing version"
         fi
     else
-        warn "$CLAUDEV_HOME exists but is not a git repo"
+        warn "$HYPE_HOME exists but is not a git repo"
         info "Backing up and reinstalling..."
-        mv "$CLAUDEV_HOME" "$CLAUDEV_HOME.backup.$(date +%s)"
-        if retry git clone --depth 1 "$REPO_URL" "$CLAUDEV_HOME"; then
-            success "Installed $(cat "$CLAUDEV_HOME/VERSION")"
+        mv "$HYPE_HOME" "$HYPE_HOME.backup.$(date +%s)"
+        if retry git clone --depth 1 "$REPO_URL" "$HYPE_HOME"; then
+            success "Installed $(cat "$HYPE_HOME/VERSION")"
         else
-            error "Failed to clone claudev repository"
+            error "Failed to clone hype repository"
             exit 1
         fi
     fi
 else
-    info "Cloning claudev..."
-    if retry git clone --depth 1 "$REPO_URL" "$CLAUDEV_HOME"; then
-        success "Installed $(cat "$CLAUDEV_HOME/VERSION")"
+    info "Cloning hype..."
+    if retry git clone --depth 1 "$REPO_URL" "$HYPE_HOME"; then
+        success "Installed $(cat "$HYPE_HOME/VERSION")"
     else
-        error "Failed to clone claudev repository"
+        error "Failed to clone hype repository"
         exit 1
     fi
 fi
@@ -405,11 +405,11 @@ add_to_path() {
     if [[ -f "$shell_rc" ]]; then
         local changed=false
 
-        # Add ~/.claudev/bin
-        if ! grep -q '.claudev/bin' "$shell_rc"; then
+        # Add ~/.hype/bin
+        if ! grep -q '.hype/bin' "$shell_rc"; then
             echo "" >> "$shell_rc"
-            echo "# Claudev" >> "$shell_rc"
-            echo 'export PATH="$HOME/.claudev/bin:$PATH"' >> "$shell_rc"
+            echo "# Hype" >> "$shell_rc"
+            echo 'export PATH="$HOME/.hype/bin:$PATH"' >> "$shell_rc"
             changed=true
         fi
 
@@ -417,7 +417,7 @@ add_to_path() {
         if ! grep -q '.local/bin' "$shell_rc"; then
             if [[ "$changed" == "false" ]]; then
                 echo "" >> "$shell_rc"
-                echo "# Claudev" >> "$shell_rc"
+                echo "# Hype" >> "$shell_rc"
             fi
             echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$shell_rc"
             changed=true
@@ -438,17 +438,17 @@ add_to_fish_path() {
     if [[ -f "$fish_config" ]]; then
         local changed=false
 
-        if ! grep -q '.claudev/bin' "$fish_config"; then
+        if ! grep -q '.hype/bin' "$fish_config"; then
             echo "" >> "$fish_config"
-            echo "# Claudev" >> "$fish_config"
-            echo 'fish_add_path $HOME/.claudev/bin' >> "$fish_config"
+            echo "# Hype" >> "$fish_config"
+            echo 'fish_add_path $HOME/.hype/bin' >> "$fish_config"
             changed=true
         fi
 
         if ! grep -q '.local/bin' "$fish_config"; then
             if [[ "$changed" == "false" ]]; then
                 echo "" >> "$fish_config"
-                echo "# Claudev" >> "$fish_config"
+                echo "# Hype" >> "$fish_config"
             fi
             echo 'fish_add_path $HOME/.local/bin' >> "$fish_config"
             changed=true
@@ -469,7 +469,7 @@ add_to_fish_path() {
 [[ -f "$HOME/.config/fish/config.fish" ]] && add_to_fish_path
 
 # Add to current session
-export PATH="$CLAUDEV_HOME/bin:$HOME/.local/bin:$PATH"
+export PATH="$HYPE_HOME/bin:$HOME/.local/bin:$PATH"
 
 # === Step 4: Verify ===
 
@@ -489,7 +489,7 @@ check_cmd() {
     fi
 }
 
-check_cmd "claudev" "claudev CLI"
+check_cmd "hype" "hype CLI"
 check_cmd "bd" "beads"
 check_cmd "gh" "GitHub CLI"
 check_cmd "jq" "jq"
@@ -517,7 +517,7 @@ echo ""
 echo "To initialize a project:"
 echo ""
 echo "  cd your-project"
-echo "  claudev init"
+echo "  hype init"
 echo ""
 echo "Note: Restart your terminal or run:"
 echo "  source ~/.zshrc  # or ~/.bashrc"

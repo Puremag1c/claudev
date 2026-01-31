@@ -13,7 +13,7 @@ set -euo pipefail
 find_project_root() {
     local dir="$PWD"
     while [ "$dir" != "/" ]; do
-        if [ -d "$dir/.claudev" ]; then
+        if [ -d "$dir/.hype" ]; then
             echo "$dir"
             return 0
         fi

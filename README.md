@@ -1,4 +1,4 @@
-# Claudev
+# Hype
 
 > v0.9.26
 
@@ -20,12 +20,12 @@
 Один раз на машину:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Puremag1c/claudev/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Puremag1c/hype/main/install.sh | bash
 ```
 
 Установщик:
-- Установит claudev в `~/.claudev/`
-- Добавит команду `claudev` в PATH
+- Установит hype в `~/.hype/`
+- Добавит команду `hype` в PATH
 - Установит зависимости (beads, gh, jq, Claude Code)
 
 ## Использование
@@ -34,27 +34,27 @@ curl -fsSL https://raw.githubusercontent.com/Puremag1c/claudev/main/install.sh |
 
 ```bash
 cd your-project
-claudev init
+hype init
 ```
 
-Команда `claudev init`:
+Команда `hype init`:
 1. Инициализирует git и beads
-2. Создаёт конфигурацию `.claudev/config.sh`
+2. Создаёт конфигурацию `.hype/config.sh`
 3. Настраивает симлинки для агентов
 4. Запускает orchestrator
 
 ## Команды
 
 ```bash
-claudev init         # Инициализация проекта + запуск
-claudev start        # Запуск orchestrator
-claudev status       # Статус проекта
-claudev update       # Обновление claudev (глобально)
-claudev upgrade      # Обновление текущего проекта
-claudev upgrade --all    # Обновление всех проектов
-claudev delete       # Удалить claudev из проекта (сохраняет код и .beads)
-claudev wipe         # Полная очистка: удаляет задачи, .beads/, все файлы claudev
-claudev reset-phase PLAN_REVIEW  # Перезапуск фазы (PLANNING, HELPERS, PLAN_REVIEW)
+hype init         # Инициализация проекта + запуск
+hype start        # Запуск orchestrator
+hype status       # Статус проекта
+hype update       # Обновление hype (глобально)
+hype upgrade      # Обновление текущего проекта
+hype upgrade --all    # Обновление всех проектов
+hype delete       # Удалить hype из проекта (сохраняет код и .beads)
+hype wipe         # Полная очистка: удаляет задачи, .beads/, все файлы hype
+hype reset-phase PLAN_REVIEW  # Перезапуск фазы (PLANNING, HELPERS, PLAN_REVIEW)
 ```
 
 ## Требования

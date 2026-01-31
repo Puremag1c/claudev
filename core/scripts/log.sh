@@ -1,24 +1,24 @@
 #!/bin/bash
 # core/scripts/log.sh
-# Хелпер для логирования в Claudev.
+# Хелпер для логирования в Hype.
 #
 # Формат: YYYY-MM-DD HH:MM:SS [AGENT] EVENT: message
-# Файл: logs/claudev.log
+# Файл: logs/hype.log
 #
 # Использование:
 #   source ./scripts/log.sh
 #   log "MANAGER" "INFO" "Starting phase detection"
-#   log "EXECUTOR" "TASK_START" "claudev-abc"
+#   log "EXECUTOR" "TASK_START" "hype-abc"
 #   log "ORCHESTRATOR" "FATAL" "Beads daemon not running"
 #
 # Или напрямую:
 #   ./scripts/log.sh MANAGER INFO "Starting phase detection"
 
-# Находим корень проекта (где .claudev/)
+# Находим корень проекта (где .hype/)
 find_project_root() {
     local dir="$PWD"
     while [ "$dir" != "/" ]; do
-        if [ -d "$dir/.claudev" ]; then
+        if [ -d "$dir/.hype" ]; then
             echo "$dir"
             return 0
         fi
@@ -29,7 +29,7 @@ find_project_root() {
 
 PROJECT_ROOT=$(find_project_root)
 LOGS_DIR="$PROJECT_ROOT/logs"
-LOG_FILE="$LOGS_DIR/claudev.log"
+LOG_FILE="$LOGS_DIR/hype.log"
 
 # Создаём директорию если нет
 mkdir -p "$LOGS_DIR"

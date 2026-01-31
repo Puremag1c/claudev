@@ -1,6 +1,6 @@
 # Project Instructions
 
-Claudev — многоагентная AI-система разработки.
+Hype — многоагентная AI-система разработки.
 
 ## Архитектура
 
@@ -28,7 +28,7 @@ orchestrator.sh (bash loop)
 
 # В фоне
 nohup ./scripts/orchestrator.sh &
-tail -f logs/claudev.log
+tail -f logs/hype.log
 ```
 
 ## Фазы
@@ -57,7 +57,7 @@ bd show <id>                # Детали задачи
 
 ## Конфигурация
 
-Редактируйте `.claudev/config.sh`:
+Редактируйте `.hype/config.sh`:
 
 ```bash
 MAX_PARALLEL_EXECUTORS=3    # Параллельные Executors
@@ -68,7 +68,7 @@ TASK_TIMEOUT="10m"          # Таймаут на задачу
 ## Логи
 
 ```bash
-tail -f logs/claudev.log           # Основной лог
+tail -f logs/hype.log           # Основной лог
 ls logs/archive/                   # Архив итераций
 cat logs/executor-<task-id>.log    # Лог конкретного executor
 ```
