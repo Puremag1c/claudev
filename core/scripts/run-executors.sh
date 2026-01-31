@@ -58,12 +58,14 @@ count_active_executors() {
 get_ready_tasks() {
     # Получаем задачи готовые к работе (не blocked, не in_progress)
     # Фильтруем:
-    #   - type == task
+    #   - type: task, bug, feature (исключаем epic - это контейнеры)
     #   - исключаем служебные (triggers, milestones)
+    #   - сортируем по приоритету (P0 первые)
     #   - sort -u для дедупликации (bd ready может вернуть дубликаты)
     bd ready --json 2>/dev/null | \
-        jq -r '.[] | select(.issue_type == "task") | select(.title | test("^run-|^milestone:") | not) | .id' 2>/dev/null | \
-        sort -u | \
+        jq -r '.[] | select(.issue_type == "task" or .issue_type == "bug" or .issue_type == "feature") | select(.title | test("^run-|^milestone:") | not) | "\(.priority):\(.id)"' 2>/dev/null | \
+        sort -n | \
+        cut -d: -f2 | \
         head -n "$MAX_PARALLEL"
 }
 
